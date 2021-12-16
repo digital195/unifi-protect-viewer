@@ -24,7 +24,7 @@ function fullscreen() {
 
 	var settingsbar = document.getElementsByTagName('section')[0].children[0]
 	// settingsbar.parentNode.removeChild(settingsbar);
-	settingsbar.style.display = 'none';
+	// settingsbar.style.display = 'none';
 
 	var menubar = document.getElementsByTagName('nav')[0];
 	// menubar.parentNode.removeChild(menubar);
