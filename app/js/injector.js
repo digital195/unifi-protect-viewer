@@ -6,7 +6,7 @@
 // tag will contain the script we intend to run wrapped in an anonymous
 // function. This way, the script we wish to run can access the guest page
 // scripting context.
-function generateScript(fn) {
+function generateScript(fn, obj = {}) {
 	// fn is going to be interpreted as a quoted string literal. As such, we need
 	// to escape double-quotes in the string, and either:
 	// (a) strip newlines and comments, or
@@ -25,55 +25,64 @@ function generateScript(fn) {
 		.replace(/"/g, '\\"')           // Escape double-quotes.
 		.replace(/(\r?\n|\r)/g, '\\n'); // Insert newlines correctly.
 
+	var variables = '';
+	
+	Object.keys(obj).forEach(function(key) {
+		variables += 'const ' + key + ' = \'' + obj[key] + '\';';
+	});
+
 	var scriptText =
 		'(function() {\n' +
 		'  var script = document.createElement("script");\n' +
-		'  script.innerHTML = "(function() { (' + fnText + ')(); })()" \n'+
+		'  \n' + 
+		'  script.innerHTML = "' + variables + '(function() { (' + fnText + ')(); })()" \n'+
 		'  document.body.appendChild(script);\n' +
 		'})()';
+		
 	return scriptText;
 }
+
+webview.src = PROTECT_APP;
 
 // When our app loads, setup a listener that will execute our script after the
 // target guest page has loaded.
 let first = true;
 window.addEventListener('load', function() {	
 	webview.addEventListener('loadstop', function() {
-		console.log(webview.src);
-		
 		if (webview.src.includes('/login?redirect=%2Fprotect%2F')) {
-			console.log('login');
 			if (first) {
-				console.log('first login fix cert');
+				// first login fix cert, only when needed
 				// webview.executeScript({ code: generateScript(fuckOffChrome) });
 				first = false;
 			}			
 			
 			setTimeout(function() { 
-				webview.executeScript({ code: generateScript(login) });
+				webview.executeScript({ code: generateScript(login, { username: PROTECT_APP_USERNAME, password: PROTECT_APP_PASSWORD}) });
 			}, 3000); 
 		}
 		
-		if (webview.src.includes("/liveview/")){
+		if (webview.src.includes("/liveview/")) {
 			setTimeout(function() {
 				webview.executeScript({ code: generateScript(fullscreen) });
+				webview.executeScript({ code: generateScript(changeControls) });
 			}, 3000);
 		}
 	});
 	
+	// request fullscreen permission
 	webview.addEventListener('permissionrequest', function(e) {
 		if (e.permission === 'fullscreen') e.request.allow();
 	});
 
+	// toggle size on fullscreen change
 	document.addEventListener('webkitfullscreenchange', function(){
 		if (chrome.app.window.current().isFullscreen()){
 			webview.style.height = screen.height + 'px';
 			webview.style.width = screen.width + 'px';
 		}
 		else{
-			/*get webview to original dimensions*/
-			webview.style.height = '100%';
-			webview.style.width = '100%';
+			webview.style.height = 'auto';
+			webview.style.width = 'auto';
 		};
 	});
 });

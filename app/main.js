@@ -22,10 +22,14 @@ chrome.app.runtime.onRestarted.addListener(function() {
  *
  * @see http://developer.chrome.com/apps/app.window.html
  */
-function runApp() {
-	chrome.app.window.create('html/protect.html', {'id': 'unifiProtectViewer', state: "normal", "resizable": true}, // state: "fullscreen", "resizable": true
+function runApp() {	
+	const state = PROTECT_APP_FULLSCREEN ? 'fullscreen' : 'normal';
+	
+	chrome.app.window.create('html/protect.html', {'id': 'unifiProtectViewer', state: state, 'resizable': PROTECT_APP_RESIZEABLE},
 		function(createdWindow) {
-			// createdWindow.fullscreen();
+			if (PROTECT_APP_FULLSCREEN) {
+				createdWindow.fullscreen();
+			}
 		}
 	);
 }
