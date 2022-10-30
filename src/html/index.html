@@ -1,0 +1,99 @@
+<html>
+    <head>
+        <title>Unifi Protect Viewer Welcome</title>
+
+        <style>
+            body {
+                margin: 0;
+                padding: 0;
+
+                font-family: Arial, Helvetica, sans-serif;
+            }
+
+            .wrapper {
+                display: flex;
+                width: 100vw;
+                height: 100vh;
+                overflow: auto;
+            }
+
+            .sidebar {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                overflow-y: auto;
+
+                width: 240px;
+                background-color: white;
+                padding: 80px;
+            }
+
+            .main {
+                flex-grow: 10;
+                background-color: rgb(246, 246, 248);
+            }
+
+            .logo {
+                display: flex;
+                justify-content: center;
+            }
+
+            .logo img {
+                max-width: 64px;
+                border-radius: 32px;
+            }
+
+            .group {
+                display: flex;
+                flex-direction: column;
+            }
+
+            .group button {
+                padding: 0 16px;
+                line-height: 32px;
+                border: 1px solid #006fff;
+                border-radius: 4px;
+                color: #fff;
+                background-color: #006fff;
+                cursor: pointer;
+            }
+        </style>
+    </head>
+
+    <body>
+        <div class="wrapper">
+            <div class="sidebar">
+                <div class="logo">
+                    <img src="../../src/img/128.png">
+                </div>
+
+                <div>
+                    <h3>Unifi Protect Viewer</h3>
+
+                    <p>Just an empty page, you should not be here!</p>
+
+                    <p>Maybe the url is not working :/</p>
+
+                    <p><small>Example Url: <br/>https://192.168.1.1/protect/liveview/635e65bd000c1c0387005a5f</small></p>
+                </div>
+
+                <div class="group">
+                    <button onclick="reset()">Reset Config</button>
+                </div>
+            </div>
+
+            <div class="main">
+
+            </div>
+        </div>
+
+        <script type="text/javascript">
+            function reset() {
+                window.electronAPI.reset();
+
+                window.electronAPI.restart();
+            }
+        </script>
+    </body>
+
+</html>

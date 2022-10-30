@@ -1,34 +1,53 @@
-# UnifiProtect Chrome App
+# UnifiProtect Viewer Electron App
 
-This is a Chrome app for Unifi Protect Live View build by remcotjeerdsma updated by Sebastian Loer. This version was testet with Unifi Protect v2.0.2 running on an UDM-Pro.
+This is an electron app for unifi protect liveview build by Sebastian Loer. This version was testet with unifi protect v2.2.6 running on an UDM-Pro.
+
+This app allows you to view your liveview from a simple app with automatic login. Just configure your unifi protect address and credentials and the app will automaticly login and present you the liveview you selected.
+
+![Screenshot #1 Configuration](screenshots/liveview.png)
 
 ## Configuration
 
-Example config.js:
+Just start the application and enter your credentials and url to your unifi protect instance.
 
-```
-const PROTECT_APP = 'http://192.168.1.1/login?redirect=%2Fprotect%2Fliveview';
-const PROTECT_APP_USERNAME = 'digital195';
-const PROTECT_APP_PASSWORD = '54321';
-const PROTECT_APP_FULLSCREEN = false;
-const PROTECT_APP_RESIZEABLE = true;
-```
+![Screenshot #1 Configuration](screenshots/configuration.png)
 
-Rename the `config.sample.js` to `config.js` and change the values for your needs. The PROTECT_APP needs to be set to the IP-address of your Unifi Protect installation. 
-Sadly with UnifiOS the not ssl encrypted port 7080 is not working with protect anymore so we need to use the encrypted 443 port. The port 7080 can work on any other device but not on the udm pro. This is testet with the following configuration `https://[IP]?redirect=%2Fprotect%2Fliveview` . Remcotjeerdsma used his approach with the not ssl encrypted 7080 port, please use that if it is possible (for performance and to avoid certificate acceptence issues for self-signed certificates, that is a problem with using the 443 port).
-Leave the `/login?redirect=%2Fprotect%2Fliveview` part of the URL untouched. You can attach a direct link to a selected liveview if you want at the end of the link like so `%2F5f11fbd501b57f03870003fa` where `5f11fbd501b57f03870003fa` is the url id of the liveview.
+Example Link: `https://192.168.1.1/protect/liveview/635e65bd000c1c0387005a5f`
 
+The Link needs to be set to the IP-address of your Unifi Protect installation. You can simply copy the link from your browser while viewing the liveview on your unifi protect instance.
 
 ## Installation
 
-Zip the `app` folder, and rename the fileextension to `.crx`. Then upload the chrome app to your Chrome browser or ChromeOS. 
-The app is compatible with kiosk mode on ChromeOS devices (such as ChromeBit/ChromeStick etc) so that it autostarts on boot there.
+Ether you can download this application from github or build it yourself with this repository.
 
-If your chrome is in developer mode, you can also upload the 'app' folder directly to your own installation without zipping.
-1.  Go to `chrome://extensions/` and check the box for Developer mode in the top right.
-2.  Refresh the page and click the 'Load unpacked extension' button and select the `app` folder to install it.
+Copy the finished build to a location of your choice. Then you can start the application from this directory.
 
+## Building
 
-## Source
+Install all dependencies with the `npm install` or `npm i` command. After this you can build the application yourself for your needed platform.
 
-This Chrome app is based on the UnifiProtectCrx from [remcotjeerdsma](https://github.com/remcotjeerdsma/UnifiProtectCrx)
+For some platforms there are scripts inside the package.json.
+ 
+`npm run build:ia32:windows`
+
+`npm run build:x64:macos`
+
+`npm run build:x64:linux`
+
+## Usage
+
+After configuration the app will automaticly start the liveview after startup. If you want to change the configuration or when you misspell your credentials you can press `F10` to reset all settings and restart the configuration process.
+
+- F9 Restart
+- F10 Restart & Reset
+- F11 Fullscreen (Electron, no Unifi Protect Fullscreen)
+
+## Chrome App
+
+Sadly google announced that there will be no support for chrome apps on windows, mac or linux after december 2022.
+
+![Screenshot #1 Chromeapp](screenshots/chrome-app.png)
+
+The Chrome app for Unifi Protect Viewer is based up on a version of remcotjeerdsma. The Version is fully functional, you can find instructions and the sourcecode under the following link.
+
+https://github.com/digital195/unifi-protect-viewer/tree/caaec3523361f5494338b333426cc1af5a48707a

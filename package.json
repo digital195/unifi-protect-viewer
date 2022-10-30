@@ -1,0 +1,30 @@
+{
+  "name": "unifi-protect-viewer",
+  "version": "0.1.0",
+  "description": "Electron app for Unifi Protect Live View.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "npm run build:linux && npm run build:macos && npm run build:windows",
+    "build:ia32:windows": "electron-packager ./ unifi-protect-viewer --overwrite --asar --platform win32 --arch ia32 --icon ./src/img/128.png --prune true --out builds --version-string.CompanyName=CE --version-string.FileDescription=CE --version-string.ProductName=\"unifi-protect-viewer\"",
+    "build:x64:macos": "electron-packager ./ unifi-protect-viewer --overwrite --platform darwin --arch x64 --icon ./src/img/128.png --prune=true --out=builds",
+    "build:x64:linux": "electron-packager ./ unifi-protect-viewer --overwrite --asar --platform linux --arch x64 --icon ./src/img/128.png --prune true --out builds"
+  },
+  "keywords": [
+    "app",
+    "electron",
+    "unifi",
+    "protect",
+    "viewer"
+  ],
+  "author": "Sebastian Loer",
+  "license": "",
+  "devDependencies": {
+    "electron": "21.2.0",
+    "electron-packager": "17.0.0",
+    "electron-reloader": "1.2.3"
+  },
+  "dependencies": {
+    "electron-store": "8.1.0"
+  }
+}

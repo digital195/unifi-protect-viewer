@@ -1,0 +1,196 @@
+<html>
+<head>
+    <title>Unifi Protect Viewer Config</title>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        .wrapper {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            overflow: auto;
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow-y: auto;
+
+            width: 240px;
+            background-color: white;
+            padding: 80px;
+        }
+
+        .main {
+            flex-grow: 10;
+            background-color: rgb(246, 246, 248);
+        }
+
+        .hotkey {
+            display: flex;
+        }
+
+        .hotkey * {
+            width: 50%;
+        }
+
+        .logo {
+            display: flex;
+            justify-content: center;
+        }
+
+        .logo img {
+            max-width: 64px;
+            border-radius: 32px;
+        }
+
+        .group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .group button {
+            padding: 0 16px;
+            line-height: 32px;
+            border: 1px solid #006fff;
+            border-radius: 4px;
+            color: #fff;
+            background-color: #006fff;
+            cursor: pointer;
+        }
+
+        .group button:disabled {
+            border-color: #cce2ff;
+            background-color: #cce2ff;
+        }
+
+        .group label {
+            font-size: 12px;
+        }
+
+        .group input {
+            border: 0;
+            outline: none;
+            padding-bottom: 10px;
+            padding-top: 5px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid rgba(0,0,0,.85);
+            font-size: 14px;
+        }
+
+        .group input:hover, .group input:focus {
+
+            border-bottom: 1px solid #006fff;
+        }
+
+        .error {
+            border-left: 10px solid red;
+            padding: 0 16px;
+            line-height: 32px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        small {
+            font-size: 12px
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrapper">
+        <div class="sidebar">
+            <div class="logo">
+                <img src="../../src/img/128.png">
+            </div>
+
+            <div>
+                <h3>Unifi Protect Viewer</h3>
+
+                <p>Please enter your configuration down below!</p>
+            </div>
+
+            <div class="group">
+                <label for="url">Url*</label>
+                <input id="url" name="url"/>
+            </div>
+
+            <div class="group">
+                <label for="username">Username*</label>
+                <input id="username" name="username"/>
+            </div>
+
+            <div class="group">
+                <label for="password">Password*</label>
+                <input id="password" type="password" name="password"/>
+            </div>
+
+            <div id="error" class="group error" style="display: none"></div>
+
+            <div class="group">
+                <button onclick="save()">Save Config</button>
+            </div>
+
+            <div>
+                <h3>Hotkey</h3>
+
+                <div class="hotkey"><small>F9</small><span>Restart</span></div>
+                <div class="hotkey"><small>F10</small><span>Reset & Restart</span></div>
+                <div class="hotkey"><small>F11</small><span>Fullscreen</span></div>
+            </div>
+        </div>
+
+        <div class="main">
+
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        function save() {
+            const url = document.getElementById("url").value;
+            const username = document.getElementById("username").value;
+            const password = document.getElementById("password").value;
+
+            const errorField = document.getElementById("error");
+
+            if (url === "") {
+                errorField.style.display = "initial";
+                errorField.innerText = "The url is required!";
+                return;
+            }
+
+            if (username === "") {
+                errorField.style.display = "initial";
+                errorField.innerText = "The username is required!";
+                return;
+            }
+
+            if (password === "") {
+                errorField.style.display = "initial";
+                errorField.innerText = "The password is required!";
+                return;
+            }
+
+            const config = {
+                url,
+                username,
+                password
+            }
+
+            errorField.style.display = "none";
+
+            window.electronAPI.configSave(config);
+
+            window.electronAPI.restart();
+        }
+    </script>
+</body>
+
+</html>
