@@ -59,6 +59,7 @@ async function run() {
 
 	// unifi stuff - fullscreen for liveview
 	if (checkUrl('protect/liveview')) {
+		// currently not needed
 		if (elementExists(document.getElementsByClassName('ReactModalPortal'), 0))
 			clickElement(document.getElementsByClassName('ReactModalPortal')[0]?.getElementsByTagName('svg')[0]);
 

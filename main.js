@@ -5,8 +5,23 @@ const Store = require('electron-store');
 
 
 
+// some const
+const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36';
+const defaultWidth = 1270;
+const defaultHeight = 750;
+
+
+
+// portable use
+// when you can to persist the data inside the executable directory just use this store config, please change the encryptionKey
+// then you could use the app as a portable app with saved config, size and position is only saved on non portable versions of this app
+const portable = false;
+const encryptionKey = '****';
+
+
+
 // persistent store
-const store = new Store();
+const store = portable ? new Store({ name: 'storage', fileExtension: 'db', cwd: process.cwd() + '/store', encryptionKey: encryptionKey }) : new Store();
 
 
 
@@ -24,7 +39,7 @@ try {
 
 // event handlers
 function handleReset(event) {
-  store.delete('config');
+  store.clear();
 }
 
 function handleRestart(event) {
@@ -45,9 +60,15 @@ function handleWindow(mainWindow) {
   mainWindow.loadFile('./src/html/index.html');
 
   if (store.has('config')) {
-    mainWindow.loadURL(store.get('config').url);
+    mainWindow.loadURL(store.get('config').url, {
+      userAgent: userAgent
+    });
   } else {
     mainWindow.loadFile('./src/html/config.html');
+  }
+
+  if (!store.has('init')) {
+    store.set('init', true);
   }
 }
 
@@ -56,8 +77,10 @@ function handleWindow(mainWindow) {
 function createWindow () {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 750,
+    width: store.get('bounds')?.width || defaultWidth,
+    height: store.get('bounds')?.height || defaultHeight,
+    x: store.get('bounds')?.x || undefined,
+    y: store.get('bounds')?.y || undefined,
     webPreferences: {
       nodeIntegration: false,
       spellcheck: true,
@@ -76,10 +99,19 @@ function createWindow () {
     autoHideMenuBar: true,
   });
 
+  // set the main window title
   mainWindow.setTitle('UnifiProtect Viewer');
 
+  // disable automatic app title updates
   mainWindow.on('page-title-updated', function(e) {
     e.preventDefault()
+  });
+
+  // save bounds to store on close
+  mainWindow.on("close", function() {
+    if (store.has('init') && !portable) {
+      store.set('bounds', mainWindow.getBounds());
+    }
   });
 
   // and load the index.html of the app.
