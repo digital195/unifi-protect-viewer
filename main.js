@@ -1,7 +1,9 @@
 // Modules to control application life and create native browser window
 const {app, BrowserWindow, ipcMain} = require('electron');
 const path = require('path');
+const fs = require('fs');
 const Store = require('electron-store');
+const electron = require("electron");
 
 
 
@@ -13,15 +15,18 @@ const defaultHeight = 750;
 
 
 // portable use
-// when you can to persist the data inside the executable directory just use this store config, please change the encryptionKey
-// then you could use the app as a portable app with saved config, size and position is only saved on non portable versions of this app
+// when you want to persist the data inside the executable directory just use this store config, please change the encryptionKey
+// then you can use it as a portable app with saved config, size and position is only saved on non portable versions of this app
 const portable = false;
+const portableStoreCwd = path.join(process.resourcesPath, 'store');
 const encryptionKey = '****';
 
-
-
 // persistent store
-const store = portable ? new Store({ name: 'storage', fileExtension: 'db', cwd: process.cwd() + '/store', encryptionKey: encryptionKey }) : new Store();
+if (portable && !fs.existsSync(portableStoreCwd)) {
+  fs.mkdirSync(portableStoreCwd);
+}
+
+const store = portable ? new Store({ name: 'storage', fileExtension: 'db', cwd: portableStoreCwd, encryptionKey: encryptionKey }) : new Store();
 
 
 

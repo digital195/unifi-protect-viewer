@@ -1,6 +1,6 @@
 # UnifiProtect Viewer Electron App
 
-This is an electron app for unifi protect liveview build by Sebastian Loer. This version was testet with unifi protect v2.2.6 running on an UDM-Pro.
+This is an electron app for unifi protect liveview build by Sebastian Loer. This version was testet with unifi protect v2.8.28 running on an UDM-Pro.
 
 This app allows you to view your liveview from a simple app with automatic login. Just configure your unifi protect address and credentials and the app will automaticly login and present you the liveview you selected.
 
@@ -31,6 +31,8 @@ For some platforms there are scripts inside the package.json.
 `npm run build:ia32:windows`
 
 `npm run build:x64:macos`
+
+`npm run build:arm64:macos`
 
 `npm run build:x64:linux`
 
