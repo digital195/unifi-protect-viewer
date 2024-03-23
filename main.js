@@ -1,9 +1,8 @@
 // Modules to control application life and create native browser window
 const {app, BrowserWindow, ipcMain} = require('electron');
-const path = require('path');
-const fs = require('fs');
+const path = require('node:path');
+const fs = require('node:fs');
 const Store = require('electron-store');
-const electron = require("electron");
 
 
 
@@ -31,7 +30,7 @@ const store = portable ? new Store({ name: 'storage', fileExtension: 'db', cwd: 
 
 
 // cause self-signed certificate
-app.commandLine.appendSwitch('ignore-certificate-errors', true);
+app.commandLine.appendSwitch('ignore-certificate-errors', 'true');
 
 
 
@@ -61,15 +60,16 @@ function handleConfigSave(event, config) {
 }
 
 // window handler
-function handleWindow(mainWindow) {
-  mainWindow.loadFile('./src/html/index.html');
-
+async function handleWindow(mainWindow) {
   if (store.has('config')) {
-    mainWindow.loadURL(store.get('config').url, {
+    // do not await here, the file is the fallback if the url cannot be loaded
+    mainWindow.loadFile('./src/html/index.html').then();
+
+    await mainWindow.loadURL(store.get('config').url, {
       userAgent: userAgent
     });
   } else {
-    mainWindow.loadFile('./src/html/config.html');
+    await mainWindow.loadFile('./src/html/config.html');
   }
 
   if (!store.has('init')) {
@@ -79,7 +79,7 @@ function handleWindow(mainWindow) {
 
 
 
-function createWindow () {
+async function createWindow () {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: store.get('bounds')?.width || defaultWidth,
@@ -120,7 +120,7 @@ function createWindow () {
   });
 
   // and load the index.html of the app.
-  handleWindow(mainWindow);
+  await handleWindow(mainWindow);
 }
 
 
@@ -128,14 +128,14 @@ function createWindow () {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   ipcMain.on('reset', handleReset);
   ipcMain.on('restart', handleRestart);
   ipcMain.on('configSave', handleConfigSave);
 
   ipcMain.handle('configLoad', handleConfigLoad)
 
-  createWindow();
+  await createWindow();
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the

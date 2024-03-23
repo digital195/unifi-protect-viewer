@@ -57,7 +57,7 @@ async function run() {
 		await wait(2000);
 	}
 
-	// unifi stuff - fullscreen for liveview
+	// unifi stuff - fullscreen for liveview (version 2)
 	if (checkUrl('protect/liveview')) {
 		// currently not needed
 		if (elementExists(document.getElementsByClassName('ReactModalPortal'), 0))
@@ -69,6 +69,42 @@ async function run() {
 		setStyle(document.getElementsByTagName('nav')[0], 'display', 'none');
 		setStyle(document.querySelectorAll("[class^=liveview__ViewportsWrapper]")[0], 'maxWidth', '100vw');
 		setStyle(document.querySelectorAll("[class^=liveview__ViewportsWrapper]")[0], 'maxHeight', '100vh');
+	}
+
+	// unifi stuff - fullscreen for new dashboard (version 3)
+	if (checkUrl('protect/dashboard')) {
+		// currently not needed
+		if (elementExists(document.getElementsByClassName('ReactModalPortal'), 0))
+			clickElement(document.getElementsByClassName('ReactModalPortal')[0]?.getElementsByTagName('svg')[0]);
+
+		await wait(200);
+
+		setStyle(document.getElementsByTagName('body')[0], 'background', 'black');
+
+		setStyle(document.getElementsByTagName('header')[0], 'display', 'none');
+		setStyle(document.getElementsByTagName('nav')[0], 'display', 'none');
+
+		setStyle(document.querySelectorAll("[class^=dashboard__Widgets]")[0], 'display', 'none');
+		setStyle(document.querySelectorAll("[class^=liveView__Header]")[0], 'display', 'none');
+		setStyle(document.querySelectorAll("button[class^=dashboard__ExpandButton]")[0], 'display', 'none');
+		setStyle(document.querySelectorAll("[class^=dashboard__Content]")[0], 'display', 'block');
+		setStyle(document.querySelectorAll("[class^=dashboard__Content]")[0], 'padding', '0');
+		setStyle(
+			document.querySelectorAll("[class^=dashboard__LiveViewWrapper]")[0]
+					.querySelectorAll("[class^=dashboard__Scrollable]")[0],
+			'paddingBottom', '0'
+		);
+		setStyle(
+			document.querySelectorAll("[class^=dashboard__LiveViewWrapper]")[0]
+				.querySelectorAll("[class^=liveview__ViewportsWrapper]")[0],
+			'maxWidth', 'calc(177.778vh - 50px)'
+		);
+
+		document.querySelectorAll("[class^=LiveViewGridSlot__CameraNameWrapper] button").forEach( button => {
+			setStyle(button, 'color', 'white');
+			setStyle(button, 'cursor', 'initial');
+			setStyle(button, 'pointerEvents', 'none');
+		});
 	}
 }
 
