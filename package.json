@@ -1,16 +1,23 @@
 {
   "name": "unifi-protect-viewer",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Electron app for Unifi Protect Live View.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "build": "npm run build:x64:linux && npm run build:ia32:windows",
+    "build:portable": "npm run build:x64:linux:portable && npm run build:ia32:windows:portable",
     "build:macos": "npm run run build:x64:macos && npm run build:arm64:macos",
+    "build:macos:portable": "npm run run build:x64:macos:portable && npm run build:arm64:macos:portable",
     "build:ia32:windows": "electron-packager ./ unifi-protect-viewer --overwrite --asar --platform win32 --arch ia32 --icon ./src/img/128.png --prune true --out builds --version-string.CompanyName=CE --version-string.FileDescription=CE --version-string.ProductName=\"unifi-protect-viewer\"",
+    "build:ia32:windows:portable": "electron-packager ./ unifi-protect-viewer-portable --overwrite --asar --platform win32 --arch ia32 --icon ./src/img/128.png --prune true --out builds --version-string.CompanyName=CE --version-string.FileDescription=CE --version-string.ProductName=\"unifi-protect-viewer\"",
     "build:x64:macos": "electron-packager ./ unifi-protect-viewer --overwrite --platform darwin --arch x64 --icon ./src/img/128.png --prune=true --out=builds",
+    "build:x64:macos:portable": "electron-packager ./ unifi-protect-viewer-portable --overwrite --platform darwin --arch x64 --icon ./src/img/128.png --prune=true --out=builds",
     "build:arm64:macos": "electron-packager ./ unifi-protect-viewer --overwrite --platform darwin --arch arm64 --icon ./src/img/128.png --prune=true --out=builds",
-    "build:x64:linux": "electron-packager ./ unifi-protect-viewer --overwrite --asar --platform linux --arch x64 --icon ./src/img/128.png --prune true --out builds"
+    "build:arm64:macos:portable": "electron-packager ./ unifi-protect-viewer-portable --overwrite --platform darwin --arch arm64 --icon ./src/img/128.png --prune=true --out=builds",
+    "build:x64:linux": "electron-packager ./ unifi-protect-viewer --overwrite --asar --platform linux --arch x64 --icon ./src/img/128.png --prune true --out builds",
+    "build:x64:linux:portable": "electron-packager ./ unifi-protect-viewer-portable --overwrite --asar --platform linux --arch x64 --icon ./src/img/128.png --prune true --out builds",
+    "rename": "node scripts/rename-builds.js"
   },
   "keywords": [
     "app",

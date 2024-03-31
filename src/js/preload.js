@@ -3,7 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron')
 
 
 // event listeners
-addEventListener('load', (event) => {
+addEventListener('load', () => {
 	run().then();
 }, { once: true });
 
@@ -36,75 +36,139 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
 
 
+// handle fnc
+async function handleLogin() {
+	// wait until login button is present
+	await waitUntil(() => document.getElementsByTagName('button').length > 0);
+
+	const config = await configLoad();
+
+	setNativeValue(document.getElementsByName('username')[0], config.username);
+	setNativeValue(document.getElementsByName('password')[0], config.password);
+
+	clickElement(document.getElementsByTagName('button')[0]);
+}
+
+async function handleLiveviewV2() {
+	// wait until liveview is present
+	await waitUntil(() => document.querySelectorAll("[class^=liveview__ViewportsWrapper]").length > 0);
+
+	// close all modals if needed
+	if (hasElements(document.getElementsByClassName('ReactModalPortal'))) {
+		Array.from(document.getElementsByClassName('ReactModalPortal')).forEach( modalPortal => {
+			if (elementExists(modalPortal.getElementsByTagName('svg'), 0)) {
+				clickElement(modalPortal.getElementsByTagName('svg')[0]);
+			}
+		});
+	}
+
+	// wait until modals are closed
+	await waitUntil(() => Array.from(document.getElementsByClassName('ReactModalPortal')).map(e => e.children.length === 0).filter(e  => e === false).length === 0);
+
+	setStyle(document.getElementsByTagName('header')[0], 'display', 'none');
+	setStyle(document.getElementsByTagName('nav')[0], 'display', 'none');
+	setStyle(document.querySelectorAll("[class^=liveview__ViewportsWrapper]")[0], 'maxWidth', '100vw');
+	setStyle(document.querySelectorAll("[class^=liveview__ViewportsWrapper]")[0], 'maxHeight', '100vh');
+}
+
+async function handleLiveviewV3() {
+	// wait until liveview is present
+	await waitUntil(() => document.querySelectorAll("[class^=dashboard__LiveViewWrapper]").length > 0);
+
+	// close all modals if needed
+	if (hasElements(document.getElementsByClassName('ReactModalPortal'))) {
+		Array.from(document.getElementsByClassName('ReactModalPortal')).forEach( modalPortal => {
+			if (elementExists(modalPortal.getElementsByTagName('svg'), 0)) {
+				clickElement(modalPortal.getElementsByTagName('svg')[0]);
+			}
+		});
+	}
+
+	// wait until modals are closed
+	await waitUntil(() => Array.from(document.getElementsByClassName('ReactModalPortal')).map(e => e.children.length === 0).filter(e  => e === false).length === 0);
+
+	setStyle(document.getElementsByTagName('body')[0], 'background', 'black');
+	setStyle(document.getElementsByTagName('header')[0], 'display', 'none');
+	setStyle(document.getElementsByTagName('nav')[0], 'display', 'none');
+
+	// wait until widgets are present
+	await waitUntil(() =>
+		hasElements(document.querySelectorAll("[class^=dashboard__Widgets]")) &&
+		hasElements(document.querySelectorAll("[class^=liveView__Header]")) &&
+		hasElements(document.querySelectorAll("[class^=dashboard__ExpandButton]"))
+	);
+
+	setStyle(document.querySelectorAll("[class^=dashboard__Widgets]")[0], 'display', 'none');
+	setStyle(document.querySelectorAll("[class^=liveView__Header]")[0], 'display', 'none');
+	setStyle(document.querySelectorAll("button[class^=dashboard__ExpandButton]")[0], 'display', 'none');
+	setStyle(document.querySelectorAll("[class^=dashboard__Content]")[0], 'display', 'block');
+	setStyle(document.querySelectorAll("[class^=dashboard__Content]")[0], 'padding', '0');
+	setStyle(
+		document.querySelectorAll("[class^=dashboard__LiveViewWrapper]")[0]
+			.querySelectorAll("[class^=dashboard__Scrollable]")[0],
+		'paddingBottom', '0'
+	);
+	setStyle(
+		document.querySelectorAll("[class^=dashboard__LiveViewWrapper]")[0]
+			.querySelectorAll("[class^=liveview__ViewportsWrapper]")[0],
+		'maxWidth', 'calc(177.778vh - 50px)'
+	);
+
+	// wait until camera names are present
+	await waitUntil(() => document.querySelectorAll("[class^=LiveViewGridSlot__CameraNameWrapper] button").length > 0);
+
+	document.querySelectorAll("[class^=LiveViewGridSlot__CameraNameWrapper] button").forEach( button => {
+		setStyle(button, 'color', 'white');
+		setStyle(button, 'cursor', 'initial');
+		setStyle(button, 'pointerEvents', 'none');
+	});
+}
+
+
+
 // logic
 async function run() {
 	// config/ start page
 	if (checkUrl('index.html') || checkUrl('config.html'))
 		return;
 
-	// unifi stuff
-	await wait(2000);
+	await wait(200);
+
+	// wait until unifi loading screen is gone
+	await waitUntil(() => document.querySelectorAll("[data-testid=\"loader-screen\"]").length === 0);
 
 	// unifi stuff - login
 	if (checkUrl('login')) {
-		const config = await configLoad();
+		await handleLogin();
 
-		setNativeValue(document.getElementsByName('username')[0], config.username);
-		setNativeValue(document.getElementsByName('password')[0], config.password);
-
-		clickElement(document.getElementsByTagName('button')[0]);
-
-		await wait(2000);
+		await waitUntil(() => !checkUrl('login'));
 	}
 
-	// unifi stuff - fullscreen for liveview (version 2)
+	// unifi stuff - fullscreen for live view (version 2)
 	if (checkUrl('protect/liveview')) {
-		// currently not needed
-		if (elementExists(document.getElementsByClassName('ReactModalPortal'), 0))
-			clickElement(document.getElementsByClassName('ReactModalPortal')[0]?.getElementsByTagName('svg')[0]);
+		await handleLiveviewV2();
 
-		await wait(200);
-
-		setStyle(document.getElementsByTagName('header')[0], 'display', 'none');
-		setStyle(document.getElementsByTagName('nav')[0], 'display', 'none');
-		setStyle(document.querySelectorAll("[class^=liveview__ViewportsWrapper]")[0], 'maxWidth', '100vw');
-		setStyle(document.querySelectorAll("[class^=liveview__ViewportsWrapper]")[0], 'maxHeight', '100vh');
+		return;
 	}
 
 	// unifi stuff - fullscreen for new dashboard (version 3)
 	if (checkUrl('protect/dashboard')) {
-		// currently not needed
-		if (elementExists(document.getElementsByClassName('ReactModalPortal'), 0))
-			clickElement(document.getElementsByClassName('ReactModalPortal')[0]?.getElementsByTagName('svg')[0]);
+		await handleLiveviewV3();
 
-		await wait(200);
+		// reload & login when token expires
+		if (doesHttpOnlyCookieExist('TOKEN')) {
+			while (true) {
+				await waitUntil(() => !doesHttpOnlyCookieExist('TOKEN'), -1, 5000);
 
-		setStyle(document.getElementsByTagName('body')[0], 'background', 'black');
+				location.reload();
 
-		setStyle(document.getElementsByTagName('header')[0], 'display', 'none');
-		setStyle(document.getElementsByTagName('nav')[0], 'display', 'none');
+				await handleLogin();
 
-		setStyle(document.querySelectorAll("[class^=dashboard__Widgets]")[0], 'display', 'none');
-		setStyle(document.querySelectorAll("[class^=liveView__Header]")[0], 'display', 'none');
-		setStyle(document.querySelectorAll("button[class^=dashboard__ExpandButton]")[0], 'display', 'none');
-		setStyle(document.querySelectorAll("[class^=dashboard__Content]")[0], 'display', 'block');
-		setStyle(document.querySelectorAll("[class^=dashboard__Content]")[0], 'padding', '0');
-		setStyle(
-			document.querySelectorAll("[class^=dashboard__LiveViewWrapper]")[0]
-					.querySelectorAll("[class^=dashboard__Scrollable]")[0],
-			'paddingBottom', '0'
-		);
-		setStyle(
-			document.querySelectorAll("[class^=dashboard__LiveViewWrapper]")[0]
-				.querySelectorAll("[class^=liveview__ViewportsWrapper]")[0],
-			'maxWidth', 'calc(177.778vh - 50px)'
-		);
+				await waitUntil(() => !checkUrl('login'));
 
-		document.querySelectorAll("[class^=LiveViewGridSlot__CameraNameWrapper] button").forEach( button => {
-			setStyle(button, 'color', 'white');
-			setStyle(button, 'cursor', 'initial');
-			setStyle(button, 'pointerEvents', 'none');
-		});
+				await handleLiveviewV3();
+			}
+		}
 	}
 }
 
@@ -112,10 +176,33 @@ async function run() {
 
 // fnc stuff
 async function wait(amount) {
-	return new Promise((resolve, reject) => {
+	return new Promise((resolve) => {
 		setTimeout(() => {
 			resolve();
 		}, amount);
+	});
+}
+
+async function waitUntil(condition, timeout = 60000, interval = 100) {
+	return new Promise((resolve) => {
+		function complete(result) {
+			timeoutAd ? clearTimeout(timeoutAd) : {};
+			intervalAd ? clearInterval(intervalAd) : {};
+
+			setTimeout(() => {
+				resolve(result);
+			}, 20);
+		}
+
+		const timeoutAd = timeout !== -1 ? setTimeout(() => {
+			complete(false)
+		}, timeout) : undefined;
+
+		const intervalAd = setInterval(() => {
+			if (condition()) {
+				complete(true);
+			}
+		}, interval);
 	});
 }
 
@@ -165,6 +252,20 @@ function elementExists(elements, index = 0) {
 	return elements.length > 0 && elements[index];
 }
 
+function hasElements(elements) {
+	return elements.length > 0;
+}
+
 function checkUrl(urlPart) {
 	return document.URL.includes(urlPart);
+}
+
+// https://stackoverflow.com/a/46957815
+function doesHttpOnlyCookieExist(cookieName) {
+	const d = new Date();
+	d.setTime(d.getTime() + (1000));
+	const expires = "expires=" + d.toUTCString();
+
+	document.cookie = cookieName + "=new_value;path=/;" + expires;
+	return document.cookie.indexOf(cookieName + '=') === -1;
 }

@@ -42,16 +42,16 @@ try {
 
 
 // event handlers
-function handleReset(event) {
+function handleReset() {
   store.clear();
 }
 
-function handleRestart(event) {
+function handleRestart() {
   app.quit();
   app.relaunch();
 }
 
-async function handleConfigLoad(event) {
+async function handleConfigLoad() {
   return store.get('config');
 }
 
