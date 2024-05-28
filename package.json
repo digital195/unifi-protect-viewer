@@ -1,10 +1,10 @@
 {
   "name": "unifi-protect-viewer",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Electron app for Unifi Protect Live View.",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
+    "start": "electron --ignore=builds .",
     "build": "npm run build:x64:linux && npm run build:ia32:windows",
     "build:portable": "npm run build:x64:linux:portable && npm run build:ia32:windows:portable",
     "build:macos": "npm run run build:x64:macos && npm run build:arm64:macos",
