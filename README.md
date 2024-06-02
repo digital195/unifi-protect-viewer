@@ -1,6 +1,6 @@
 # UnifiProtect Viewer Electron App
 
-This is an electron app for unifi protect liveview build by Sebastian Loer. This version was testet with unifi protect v3.0.22 (Version 2.x is also compatible) running on an UDM-Pro. 
+This is an electron app for unifi protect liveview build by Sebastian Loer. This version was testet with unifi protect v4.0.21 (Version 2.x, Version 3.x is also compatible) running on an UDM-Pro. 
 
 This app allows you to view your liveview from a simple app with automatic login. Just configure your unifi protect address and credentials and the app will automaticly login and present you the liveview you selected.
 
@@ -14,7 +14,7 @@ Just start the application and enter your credentials and url to your unifi prot
 
 Example Link: `https://192.168.1.1/protect/liveview/635e65bd000c1c0387005a5f` (Version 2)
 
-Example Link: `https://192.168.1.1/protect/dashboard/635e65bd000c1c0387005a5f` (Version 2)
+Example Link: `https://192.168.1.1/protect/dashboard/635e65bd000c1c0387005a5f` (Version 3 & 4)
 
 The Link needs to be set to the IP-address of your Unifi Protect installation. You can simply copy the link from your browser while viewing the liveview on your unifi protect instance.
 

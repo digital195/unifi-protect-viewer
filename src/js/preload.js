@@ -191,7 +191,7 @@ async function run() {
         return;
 
     // wait until unifi loading screen visible, timeout 3000
-    await waitUntil(() => document.querySelectorAll("[data-testid=\"loader-screen\"]").length > 0, 3000);
+    await waitUntil(() => document.querySelectorAll("[data-testid=\"loader-screen\"]").length > 0, 1000);
 
     // wait until unifi loading screen is gone
     await waitUntil(() => document.querySelectorAll("[data-testid=\"loader-screen\"]").length === 0);
@@ -206,6 +206,8 @@ async function run() {
     // unifi stuff - fullscreen for live view (version 2)
     if (checkUrl('protect/liveview')) {
         await handleLiveviewV2();
+
+        console.log('version', 'Protect 2.x');
 
         // v2 is finished!
         return;
