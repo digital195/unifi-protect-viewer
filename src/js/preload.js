@@ -121,7 +121,7 @@ async function handleLiveviewV3() {
     });
 }
 
-async function handleLiveviewV4() {
+async function handleLiveviewV4andV5() {
     // wait until liveview is present
     await waitUntil(() => document.querySelectorAll("[class^=liveView__FullscreenWrapper]").length > 0);
 
@@ -186,9 +186,15 @@ async function handleLiveviewV4() {
 
 // logic
 async function run() {
+    const config = await configLoad();
+
     // config/ start page
     if (checkUrl('index.html') || checkUrl('config.html'))
         return;
+
+    if (!checkUrl(config.url)) {
+        window.location.href = config.url;
+    }
 
     // wait until unifi loading screen visible, timeout 3000
     await waitUntil(() => document.querySelectorAll("[data-testid=\"loader-screen\"]").length > 0, 1000);
@@ -213,8 +219,8 @@ async function run() {
         return;
     }
 
-    // wait until unifi version is visible (for v4), timeout 3000
-    await waitUntil(() => document.querySelectorAll("[class^=Version__Item] > span").length > 0, 3000);
+    // wait until unifi version is visible (for v4), timeout 10000
+    await waitUntil(() => document.querySelectorAll("[class^=Version__Item] > span").length > 0, 10000);
 
     // get version from screen (v4 has version string, v3 has not)
     const version = Array.from(document.querySelectorAll("[class^=Version__Item] > span")).filter(el => el.innerText.includes('Protect')).at(0)?.innerHTML ?? 'Protect 3.x';
@@ -224,27 +230,31 @@ async function run() {
     if (checkUrl('protect/dashboard') && version.includes('3.')) {
         await handleLiveviewV3();
 
-        await wait(1000);
+        await wait(4000);
 
         await handleLiveviewV3();
     }
 
     // unifi stuff - fullscreen for dashboard (version 4)
-    if (checkUrl('protect/dashboard') && version.includes('4.')) {
-        await handleLiveviewV4();
+    if (checkUrl('protect/dashboard') && (version.includes('4.') || version.includes('5.'))) {
+        await handleLiveviewV4andV5();
 
-        await wait(1000);
+        await wait(4000);
 
-        await handleLiveviewV4();
+        await handleLiveviewV4andV5();
     }
 
-    // reload & login when token expires (v3 & v4)
-    if (doesHttpOnlyCookieExist('TOKEN')) {
-        while (true) {
-            await waitUntil(() => !doesHttpOnlyCookieExist('TOKEN'), -1, 5000);
+    // reload & login when token expires (v3 & v4) and we got the expires at in localstorage
+    if (localStorage.getItem('portal:localSessionsExpiresAt')) {
+        const loginExpiresAt = +localStorage.getItem('portal:localSessionsExpiresAt');
 
-            location.reload();
-        }
+        // offset 10 minutes before expire
+        const offset = 10 * 60 * 1000;
+
+        // wait until ~10 minutes before expire or page url changed
+        await waitUntil(() => !checkUrl(config.url) || new Date().getTime() > (loginExpiresAt - offset), -1, 60000);
+
+        location.reload();
     }
 }
 
@@ -270,7 +280,7 @@ async function waitUntil(condition, timeout = 60000, interval = 100) {
         }
 
         const timeoutAd = timeout !== -1 ? setTimeout(() => {
-            complete(false)
+            complete(false);
         }, timeout) : undefined;
 
         const intervalAd = setInterval(() => {
@@ -333,14 +343,4 @@ function hasElements(elements) {
 
 function checkUrl(urlPart) {
     return document.URL.includes(urlPart);
-}
-
-// https://stackoverflow.com/a/46957815
-function doesHttpOnlyCookieExist(cookieName) {
-    const d = new Date();
-    d.setTime(d.getTime() + (1000));
-    const expires = "expires=" + d.toUTCString();
-
-    document.cookie = cookieName + "=new_value;path=/;" + expires;
-    return document.cookie.indexOf(cookieName + '=') === -1;
 }

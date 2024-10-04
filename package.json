@@ -1,6 +1,6 @@
 {
   "name": "unifi-protect-viewer",
-  "version": "0.3.0",
+  "version": "0.3.2",
   "description": "Electron app for Unifi Protect Live View.",
   "main": "main.js",
   "scripts": {
