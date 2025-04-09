@@ -141,7 +141,6 @@ async function handleLiveviewV4andV5() {
     setStyle(document.getElementsByTagName('header')[0], 'display', 'none');
     setStyle(document.getElementsByTagName('nav')[0], 'display', 'none');
 
-
     setStyle(document.querySelectorAll("[class^=dashboard__Widgets]")[0], 'display', 'none');
     setStyle(document.querySelectorAll("button[class^=dashboard__ExpandButton]")[0], 'display', 'none');
     setStyle(document.querySelectorAll("[class^=dashboard__Content]")[0], 'display', 'block');
@@ -171,9 +170,9 @@ async function handleLiveviewV4andV5() {
     });
 
     // wait until camera player options are visible, then remove "Go to Timeline" Button
-    await waitUntil(() => document.querySelectorAll("[class^=LiveViewGridSlot__PlayerOptions] [class^=LiveViewGridSlot__StyledGoToButton]").length > 0);
+    await waitUntil(() => document.querySelectorAll("[class^=LiveViewGridSlot__PlayerOptions] [class^=PlayerTopLeftControls__ButtonGroup]").length > 0, 1000);
 
-    document.querySelectorAll("[class^=LiveViewGridSlot__PlayerOptions] [class^=LiveViewGridSlot__StyledGoToButton]").forEach( button => {
+    document.querySelectorAll("[class^=LiveViewGridSlot__PlayerOptions] [class^=PlayerTopLeftControls__ButtonGroup]").forEach( button => {
     	setStyle(button, 'display', 'none');
     });
 
@@ -211,9 +210,11 @@ async function run() {
 
     // unifi stuff - fullscreen for live view (version 2)
     if (checkUrl('protect/liveview')) {
-        await handleLiveviewV2();
+        console.log('version', '2.x');
 
-        console.log('version', 'Protect 2.x');
+        console.log('run logic v2');
+
+        await handleLiveviewV2();
 
         // v2 is finished!
         return;
@@ -223,11 +224,17 @@ async function run() {
     await waitUntil(() => document.querySelectorAll("[class^=Version__Item] > span").length > 0, 10000);
 
     // get version from screen (v4 has version string, v3 has not)
-    const version = Array.from(document.querySelectorAll("[class^=Version__Item] > span")).filter(el => el.innerText.includes('Protect')).at(0)?.innerHTML ?? 'Protect 3.x';
+    const version = (
+        Array.from(document.querySelectorAll("[class^=Version__Item] > span")).filter(el => el.innerText.includes('Protect')).at(0)?.innerHTML
+            ?? 'Protect 3.x'
+    ).replace('Protect', '').trim();
+
     console.log('version', version);
 
     // unifi stuff - fullscreen for dashboard (version 3)
-    if (checkUrl('protect/dashboard') && version.includes('3.')) {
+    if (checkUrl('protect/dashboard') && version.startsWith('3.')) {
+        console.log('run logic v3');
+
         await handleLiveviewV3();
 
         await wait(4000);
@@ -236,7 +243,9 @@ async function run() {
     }
 
     // unifi stuff - fullscreen for dashboard (version 4)
-    if (checkUrl('protect/dashboard') && (version.includes('4.') || version.includes('5.'))) {
+    if (checkUrl('protect/dashboard') && version.startsWith('4.') || version.startsWith('5.')) {
+        console.log('run logic v4/5',);
+
         await handleLiveviewV4andV5();
 
         await wait(4000);
