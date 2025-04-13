@@ -38,6 +38,8 @@ For some platforms there are scripts inside the package.json.
 
 `npm run build:x64:linux`
 
+`npm run build:arm64:linux`
+
 ## Usage
 
 After configuration the app will automaticly start the liveview after startup. If you want to change the configuration or when you misspell your credentials you can press `F10` to reset all settings and restart the configuration process.

@@ -17,6 +17,8 @@
     "build:arm64:macos:portable": "electron-packager ./ unifi-protect-viewer-portable --overwrite --platform darwin --arch arm64 --icon ./src/img/128.png --prune=true --out=builds",
     "build:x64:linux": "electron-packager ./ unifi-protect-viewer --overwrite --asar --platform linux --arch x64 --icon ./src/img/128.png --prune true --out builds",
     "build:x64:linux:portable": "electron-packager ./ unifi-protect-viewer-portable --overwrite --asar --platform linux --arch x64 --icon ./src/img/128.png --prune true --out builds",
+    "build:arm64:linux": "electron-packager ./ unifi-protect-viewer --overwrite --asar --platform linux --arch arm64 --icon ./src/img/128.png --prune true --out builds",
+    "build:arm64:linux:portable": "electron-packager ./ unifi-protect-viewer-portable --overwrite --asar --platform linux --arch arm64 --icon ./src/img/128.png --prune true --out builds",
     "rename": "node scripts/rename-builds.js"
   },
   "keywords": [
