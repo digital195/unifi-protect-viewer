@@ -191,7 +191,8 @@ async function run() {
     if (checkUrl('index.html') || checkUrl('config.html'))
         return;
 
-    if (!checkUrl(config.url)) {
+    if (!checkUrl(config.url) && !checkUrl('login?redirect')) {
+        console.log('redirect', config.url);
         window.location.href = config.url;
     }
 
@@ -203,6 +204,7 @@ async function run() {
 
     // unifi stuff - login
     if (checkUrl('login')) {
+        console.log('login');
         await handleLogin();
 
         await waitUntil(() => !checkUrl('login'));
@@ -244,7 +246,7 @@ async function run() {
 
     // unifi stuff - fullscreen for dashboard (version 4)
     if (checkUrl('protect/dashboard') && version.startsWith('4.') || version.startsWith('5.')) {
-        console.log('run logic v4/5',);
+        console.log('run logic v4/v5',);
 
         await handleLiveviewV4andV5();
 
