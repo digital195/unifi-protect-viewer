@@ -61,16 +61,16 @@ function handleConfigSave(event, config) {
 
 function handleUrlUpdate(event, newUrl) {
   const config = store.get('config');
-  if (config) {
+  if (config && newUrl) {
     config.url = newUrl;
     store.set('config', config);
   }
 }
 
 function handleShowReconfigureUrl() {
-  const mainWindow = BrowserWindow.getAllWindows()[0];
-  if (mainWindow) {
-    mainWindow.loadFile('./src/html/config.html', { query: { mode: 'reconfigure' } });
+  const windows = BrowserWindow.getAllWindows();
+  if (windows.length > 0) {
+    windows[0].loadFile('./src/html/config.html', { query: { mode: 'reconfigure' } });
   }
 }
 

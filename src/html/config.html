@@ -168,10 +168,14 @@
                 isReconfigureMode = urlParams.get('mode') === 'reconfigure';
 
                 if (isReconfigureMode) {
-                    // Load existing config and show current URL
-                    const config = await window.electronAPI.configLoad();
-                    if (config && config.url) {
-                        document.getElementById('url').value = config.url;
+                    try {
+                        // Load existing config and show current URL
+                        const config = await window.electronAPI.configLoad();
+                        if (config && config.url) {
+                            document.getElementById('url').value = config.url;
+                        }
+                    } catch (e) {
+                        // Config load failed, continue with empty URL field
                     }
 
                     // Update UI for reconfigure mode
