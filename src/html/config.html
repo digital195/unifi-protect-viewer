@@ -114,7 +114,7 @@
                 <div>
                     <h3>Unifi Protect Viewer</h3>
 
-                    <p>Please enter your configuration down below!</p>
+                    <p id="configMessage">Please enter your configuration down below!</p>
                 </div>
 
                 <div class="group">
@@ -122,20 +122,26 @@
                     <input id="url" name="url"/>
                 </div>
 
-                <div class="group">
-                    <label for="username">Username*</label>
-                    <input id="username" name="username"/>
-                </div>
+                <div id="credentialsSection">
+                    <div class="group">
+                        <label for="username">Username*</label>
+                        <input id="username" name="username"/>
+                    </div>
 
-                <div class="group">
-                    <label for="password">Password*</label>
-                    <input id="password" type="password" name="password"/>
+                    <div class="group">
+                        <label for="password">Password*</label>
+                        <input id="password" type="password" name="password"/>
+                    </div>
                 </div>
 
                 <div id="error" class="group error" style="display: none"></div>
 
-                <div class="group">
+                <div class="group" id="saveButtonContainer">
                     <button onclick="save()">Save Config</button>
+                </div>
+
+                <div class="group" id="cancelButtonContainer" style="display: none">
+                    <button onclick="cancel()" style="background-color: #6c757d; border-color: #6c757d;">Cancel</button>
                 </div>
 
                 <div>
@@ -144,6 +150,7 @@
                     <div class="hotkey"><small>F9</small><span>Restart</span></div>
                     <div class="hotkey"><small>F10</small><span>Reset & Restart</span></div>
                     <div class="hotkey"><small>F11</small><span>Fullscreen</span></div>
+                    <div class="hotkey"><small>F12</small><span>Reconfigure URL</span></div>
                 </div>
             </div>
 
@@ -153,11 +160,30 @@
         </div>
 
         <script type="text/javascript">
+            let isReconfigureMode = false;
+
+            // Check if we're in reconfigure mode on page load
+            document.addEventListener('DOMContentLoaded', async function() {
+                const urlParams = new URLSearchParams(window.location.search);
+                isReconfigureMode = urlParams.get('mode') === 'reconfigure';
+
+                if (isReconfigureMode) {
+                    // Load existing config and show current URL
+                    const config = await window.electronAPI.configLoad();
+                    if (config && config.url) {
+                        document.getElementById('url').value = config.url;
+                    }
+
+                    // Update UI for reconfigure mode
+                    document.getElementById('configMessage').innerText = 'Update your live stream URL below. Your credentials will be preserved.';
+                    document.getElementById('credentialsSection').style.display = 'none';
+                    document.getElementById('cancelButtonContainer').style.display = 'block';
+                    document.querySelector('#saveButtonContainer button').innerText = 'Update URL';
+                }
+            });
+
             function save() {
                 const url = document.getElementById("url").value;
-                const username = document.getElementById("username").value;
-                const password = document.getElementById("password").value;
-
                 const errorField = document.getElementById("error");
 
                 if (url === "") {
@@ -166,28 +192,43 @@
                     return;
                 }
 
-                if (username === "") {
-                    errorField.style.display = "initial";
-                    errorField.innerText = "The username is required!";
-                    return;
+                if (isReconfigureMode) {
+                    // Only update URL, preserve other settings
+                    errorField.style.display = "none";
+                    window.electronAPI.urlUpdate(url);
+                    window.electronAPI.restart();
+                } else {
+                    // Full config save (initial setup)
+                    const username = document.getElementById("username").value;
+                    const password = document.getElementById("password").value;
+
+                    if (username === "") {
+                        errorField.style.display = "initial";
+                        errorField.innerText = "The username is required!";
+                        return;
+                    }
+
+                    if (password === "") {
+                        errorField.style.display = "initial";
+                        errorField.innerText = "The password is required!";
+                        return;
+                    }
+
+                    const config = {
+                        url,
+                        username,
+                        password
+                    }
+
+                    errorField.style.display = "none";
+
+                    window.electronAPI.configSave(config);
+
+                    window.electronAPI.restart();
                 }
+            }
 
-                if (password === "") {
-                    errorField.style.display = "initial";
-                    errorField.innerText = "The password is required!";
-                    return;
-                }
-
-                const config = {
-                    url,
-                    username,
-                    password
-                }
-
-                errorField.style.display = "none";
-
-                window.electronAPI.configSave(config);
-
+            function cancel() {
                 window.electronAPI.restart();
             }
         </script>

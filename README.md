@@ -47,6 +47,7 @@ After configuration the app will automaticly start the liveview after startup. I
 - F9 Restart
 - F10 Restart & Reset
 - F11 Fullscreen (Electron, no Unifi Protect Fullscreen)
+- F12 Reconfigure URL (change the live stream URL without resetting credentials)
 
 ## Chrome App
 

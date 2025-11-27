@@ -59,6 +59,21 @@ function handleConfigSave(event, config) {
   store.set('config', config);
 }
 
+function handleUrlUpdate(event, newUrl) {
+  const config = store.get('config');
+  if (config) {
+    config.url = newUrl;
+    store.set('config', config);
+  }
+}
+
+function handleShowReconfigureUrl() {
+  const mainWindow = BrowserWindow.getAllWindows()[0];
+  if (mainWindow) {
+    mainWindow.loadFile('./src/html/config.html', { query: { mode: 'reconfigure' } });
+  }
+}
+
 // window handler
 async function handleWindow(mainWindow) {
   if (store.has('config')) {
@@ -132,6 +147,8 @@ app.whenReady().then(async () => {
   ipcMain.on('reset', handleReset);
   ipcMain.on('restart', handleRestart);
   ipcMain.on('configSave', handleConfigSave);
+  ipcMain.on('urlUpdate', handleUrlUpdate);
+  ipcMain.on('showReconfigureUrl', handleShowReconfigureUrl);
 
   ipcMain.handle('configLoad', handleConfigLoad)
 

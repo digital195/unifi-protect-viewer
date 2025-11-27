@@ -14,6 +14,9 @@ addEventListener('keydown', async (event) => {
         ipcRenderer.send('reset');
         ipcRenderer.send('restart');
     }
+    if (event.key === 'F12') {
+        ipcRenderer.send('showReconfigureUrl');
+    }
 });
 
 
@@ -21,6 +24,8 @@ addEventListener('keydown', async (event) => {
 const reset = () => ipcRenderer.send('reset');
 const restart = () => ipcRenderer.send('restart');
 const configSave = (config) => ipcRenderer.send('configSave', config);
+const urlUpdate = (url) => ipcRenderer.send('urlUpdate', url);
+const showReconfigureUrl = () => ipcRenderer.send('showReconfigureUrl');
 
 const configLoad = () => ipcRenderer.invoke('configLoad');
 
@@ -28,6 +33,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     reset: () => reset(),
     restart: () => restart(),
     configSave: (config) => configSave(config),
+    urlUpdate: (url) => urlUpdate(url),
+    showReconfigureUrl: () => showReconfigureUrl(),
 
     configLoad: () => configLoad(),
 })

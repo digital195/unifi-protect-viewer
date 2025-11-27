@@ -80,6 +80,10 @@
                 <div class="group">
                     <button onclick="reset()">Reset Config</button>
                 </div>
+
+                <div class="group">
+                    <button onclick="reconfigureUrl()" style="background-color: #17a2b8; border-color: #17a2b8;">Reconfigure URL</button>
+                </div>
             </div>
 
             <div class="main">
@@ -92,6 +96,10 @@
                 window.electronAPI.reset();
 
                 window.electronAPI.restart();
+            }
+
+            function reconfigureUrl() {
+                window.electronAPI.showReconfigureUrl();
             }
         </script>
     </body>
