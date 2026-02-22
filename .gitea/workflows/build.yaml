@@ -1,0 +1,272 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Unifi Protect Viewer – Gitea Actions Build & Release Pipeline
+#
+# Triggered only on version tags (e.g. v1.0.0, v2.3.1).
+#
+# For every tag the workflow:
+#   1. Builds all target platforms × architectures (standard + portable each).
+#   2. Archives each build directory as a .zip (Windows/Linux) or .tar.gz (macOS).
+#   3. Creates a Gitea Release with all archive artefacts attached.
+#   4. Publishes the packages to the Gitea Package Registry (generic packages).
+#
+# ── Required secrets ──────────────────────────────────────────────────────────
+#   RELEASE_TOKEN        – Personal Access Token with write:repository scope
+#                          (Settings → Applications → Access Tokens)
+#   REG_USR              – Gitea registry account username (write:packages)
+#   REG_PSW              – Gitea registry account password (write:packages)
+#   REG_URL              – Gitea instance URL (e.g. https://gitea.example.com)
+#   UPV_ENCRYPTION_KEY   – encryption key for portable builds
+#                          (Settings → Secrets)
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'          # e.g. v1.0.0
+      - 'v[0-9]*.[0-9]*.[0-9]*-*'        # e.g. v1.0.0-rc1, v1.0.0-beta2, v1.0.0-alpha
+
+env:
+  OUT_DIR: builds
+
+jobs:
+
+  # ── 1. Build matrix ──────────────────────────────────────────────────────────
+  build:
+    name: Build ${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.portable == 'true' && ' (portable)' || '' }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Windows
+          - { platform: win32,  arch: x64,   portable: 'false', prerelease_build: false }
+          - { platform: win32,  arch: x64,   portable: 'true',  prerelease_build: true  }
+          - { platform: win32,  arch: ia32,  portable: 'false', prerelease_build: false }
+          - { platform: win32,  arch: ia32,  portable: 'true',  prerelease_build: false }
+          # macOS
+          - { platform: darwin, arch: x64,   portable: 'false', prerelease_build: false }
+          - { platform: darwin, arch: x64,   portable: 'true',  prerelease_build: false }
+          - { platform: darwin, arch: arm64, portable: 'false', prerelease_build: false }
+          - { platform: darwin, arch: arm64, portable: 'true',  prerelease_build: true  }
+          # Linux
+          - { platform: linux,  arch: x64,   portable: 'false', prerelease_build: false }
+          - { platform: linux,  arch: x64,   portable: 'true',  prerelease_build: true  }
+          - { platform: linux,  arch: arm64, portable: 'false', prerelease_build: false }
+          - { platform: linux,  arch: arm64, portable: 'true',  prerelease_build: false }
+
+    # For pre-release tags: only build entries flagged with prerelease_build: true.
+    # For full releases: build everything.
+    if: ${{ !contains(github.ref_name, '-') || matrix.prerelease_build == true }}
+
+    steps:
+      - name: Checkout SCM
+        uses: actions/checkout@v5
+
+      - name: Tool Install
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      # Wine is required on Linux for Windows cross-builds:
+      # electron-packager uses rcedit (a Windows PE tool) to embed the icon
+      # and version metadata into the .exe.  rcedit/cross-spawn-windows-exe
+      # picks up the Wine binary via the WINE_BINARY env var.
+      - name: Install Wine (win32 targets only)
+        if: matrix.platform == 'win32'
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends wine wine32 wine64
+          # Prefer wine64, fall back to plain wine.
+          # Export via GITHUB_ENV so the Build step picks it up automatically –
+          # this is more reliable in Gitea Actions than step outputs + expressions.
+          if command -v wine64 &>/dev/null; then
+            WINE_BIN="$(command -v wine64)"
+          elif command -v wine &>/dev/null; then
+            WINE_BIN="$(command -v wine)"
+          else
+            echo "ERROR: No wine binary found after installation!" && exit 1
+          fi
+          echo "Using wine binary: ${WINE_BIN}  ($(${WINE_BIN} --version))"
+          echo "WINE_BINARY=${WINE_BIN}" >> "$GITHUB_ENV"
+
+      - name: Download Dependencies
+        run: npm ci
+
+      - name: Build
+        env:
+          UPV_PLATFORM:       ${{ matrix.platform }}
+          UPV_ARCH:           ${{ matrix.arch }}
+          UPV_PORTABLE:       ${{ matrix.portable }}
+          UPV_OUT_DIR:        ${{ env.OUT_DIR }}
+          UPV_ENCRYPTION_KEY: ${{ secrets.UPV_ENCRYPTION_KEY }}
+          # WINE_BINARY is injected via $GITHUB_ENV by the Wine install step above
+          # (only present for win32 builds; unset for darwin/linux – no Wine needed).
+        run: node scripts/build.js
+
+      - name: Resolve Build Directory
+        id: resolve
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PORTABLE_SUFFIX="${{ matrix.portable == 'true' && '-portable' || '' }}"
+          EXPECTED="unifi-protect-viewer-${{ matrix.platform }}-${{ matrix.arch }}-${VERSION}${PORTABLE_SUFFIX}"
+
+          if [ "${{ matrix.platform }}" = "darwin" ]; then
+            ARCHIVE_NAME="${EXPECTED}.tar.gz"
+          else
+            ARCHIVE_NAME="${EXPECTED}.zip"
+          fi
+
+          echo "[resolve] expected dir : ${EXPECTED}"
+          echo "[resolve] archive name : ${ARCHIVE_NAME}"
+          echo "[resolve] contents of ${{ env.OUT_DIR }}:"
+          ls "${{ env.OUT_DIR }}" || true
+
+          # Find the actual directory – fall back to glob if exact name not present
+          if [ -d "${{ env.OUT_DIR }}/${EXPECTED}" ]; then
+            DIR_NAME="${EXPECTED}"
+          else
+            DIR_NAME="$(ls -d ${{ env.OUT_DIR }}/unifi-protect-viewer-${{ matrix.platform }}-${{ matrix.arch }}-*${PORTABLE_SUFFIX} 2>/dev/null | head -1 | xargs basename)"
+            echo "[resolve] exact match not found, using: ${DIR_NAME}"
+          fi
+
+          echo "dir_name=${DIR_NAME}"         >> "$GITHUB_OUTPUT"
+          echo "archive_name=${ARCHIVE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}"           >> "$GITHUB_OUTPUT"
+
+      - name: Create Archive
+        shell: bash
+        run: |
+          cd "${{ env.OUT_DIR }}"
+          echo "[archive] contents of $(pwd):"
+          ls -la
+          DIR_NAME="${{ steps.resolve.outputs.dir_name }}"
+          ARCHIVE_NAME="${{ steps.resolve.outputs.archive_name }}"
+
+          if [ ! -d "${DIR_NAME}" ]; then
+            echo "[archive] ERROR: expected directory '${DIR_NAME}' not found"
+            ls -d */ 2>/dev/null || echo "(none)"
+            exit 1
+          fi
+
+          if [ "${{ matrix.platform }}" = "darwin" ]; then
+            tar -czf "${ARCHIVE_NAME}" "${DIR_NAME}"
+          else
+            zip -9 -r "${ARCHIVE_NAME}" "${DIR_NAME}"
+          fi
+          echo "[archive] created ${ARCHIVE_NAME}  ($(du -sh "${ARCHIVE_NAME}" | cut -f1))"
+
+      - name: Upload Artefact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ steps.resolve.outputs.archive_name }}
+          path: ${{ env.OUT_DIR }}/${{ steps.resolve.outputs.archive_name }}
+          retention-days: 1
+
+  # ── 2. Create Gitea Release & upload packages ────────────────────────────────
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    # Run even when some matrix jobs were skipped (pre-release builds).
+    # "always()" prevents skipped jobs from blocking this job.
+    # The explicit failure check ensures we still abort on actual errors.
+    if: always() && !contains(needs.build.result, 'failure') && !contains(needs.build.result, 'cancelled')
+
+    steps:
+      - name: Checkout SCM
+        uses: actions/checkout@v5
+
+      - name: Resolve Version
+        id: version
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PRERELEASE="false"
+          if [[ "${VERSION}" == *"-"* ]]; then
+            PRERELEASE="true"
+          fi
+          echo "value=${VERSION}"           >> "$GITHUB_OUTPUT"
+          echo "prerelease=${PRERELEASE}"   >> "$GITHUB_OUTPUT"
+
+      - name: Download Artefacts
+        uses: actions/download-artifact@v3
+        with:
+          path: dist
+
+      - name: List Artefacts
+        run: find dist/ -type f \( -name "*.zip" -o -name "*.tar.gz" \) | sort
+
+      - name: Create Gitea Release
+        id: create_release
+        shell: bash
+        env:
+          RELEASE_USERNAME: ${{ secrets.RELEASE_USR }}
+          RELEASE_PASSWORD: ${{ secrets.RELEASE_PSW }}
+          REGISTRY:         ${{ secrets.REG_URL }}
+          TAG:              ${{ github.ref_name }}
+          REPOSITORY:       ${{ github.repository }}
+          IS_PRERELEASE:    ${{ steps.version.outputs.prerelease }}
+        run: |
+          BASE_URL="https://${REGISTRY%/}"
+          URL="${BASE_URL}/api/v1/repos/${REPOSITORY}/releases"
+          echo "Creating release for tag ${TAG} at ${URL} (prerelease: ${IS_PRERELEASE}) …"
+
+          RESPONSE=$(curl --fail-with-body \
+            --user $RELEASE_USERNAME:$RELEASE_PASSWORD \
+            -H "Content-Type: application/json" \
+            -X POST \
+            -d "{\"tag_name\":\"${TAG}\",\"name\":\"Unifi Protect Viewer ${TAG}\",\"body\":\"## Unifi Protect Viewer ${TAG}\n\nSee release assets for downloads.\",\"draft\":false,\"prerelease\":${IS_PRERELEASE}}" \
+            "${URL}")
+
+          echo "Response: ${RESPONSE}"
+          RELEASE_ID=$(echo "${RESPONSE}" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+          echo "release_id=${RELEASE_ID}" >> "$GITHUB_OUTPUT"
+          echo "Release created with id=${RELEASE_ID}"
+
+      - name: Upload Release Assets
+        shell: bash
+        env:
+          RELEASE_USERNAME: ${{ secrets.RELEASE_USR }}
+          RELEASE_PASSWORD: ${{ secrets.RELEASE_PSW }}
+          REGISTRY:         ${{ secrets.REG_URL }}
+          REPOSITORY:       ${{ github.repository }}
+        run: |
+          BASE_URL="https://${REGISTRY%/}"
+          RELEASE_ID="${{ steps.create_release.outputs.release_id }}"
+          find dist/ -type f \( -name "*.zip" -o -name "*.tar.gz" \) | sort | while read archive; do
+            filename="$(basename "${archive}")"
+            URL="${BASE_URL}/api/v1/repos/${REPOSITORY}/releases/${RELEASE_ID}/assets"
+            echo "Uploading asset ${filename} to ${URL} …"
+            curl --fail-with-body \
+              --user $RELEASE_USERNAME:$RELEASE_PASSWORD \
+              -F "attachment=@${archive}" \
+              "${URL}"
+            echo " ✓"
+          done
+
+      - name: Publish to Package Registry
+        shell: bash
+        env:
+          REGISTRY_USERNAME: ${{ secrets.REG_USR }}
+          REGISTRY_PASSWORD: ${{ secrets.REG_PSW }}
+          REGISTRY:          ${{ secrets.REG_URL }}
+          VERSION:           ${{ steps.version.outputs.value }}
+          REGISTRY_NAME:     ${{ secrets.REG_NAME }}
+        run: |
+          BASE_URL="https://${REGISTRY%/}"
+          find dist/ -type f \( -name "*.zip" -o -name "*.tar.gz" \) | sort | while read archive; do
+            filename="$(basename "${archive}")"
+            URL="${BASE_URL}/api/packages/${REGISTRY_USERNAME}/generic/${REGISTRY_NAME}/${VERSION}/${filename}"
+            echo "Uploading ${filename} to ${URL} …"
+            curl --fail-with-body \
+              --user "${REGISTRY_USERNAME}:${REGISTRY_PASSWORD}" \
+              --upload-file "${archive}" \
+              "${URL}"
+            echo " ✓"
+          done
+

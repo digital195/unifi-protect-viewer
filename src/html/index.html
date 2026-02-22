@@ -1,99 +1,204 @@
+<!doctype html>
 <html lang="en">
-    <head>
-        <title>Unifi Protect Viewer Welcome</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Unifi Protect Viewer</title>
+    <link rel="stylesheet" href="shared.css" />
+    <style>
+      /* ── Error card (right panel) ────────────────────────────────────────── */
+      .upv-error-icon {
+        width: 60px;
+        height: 60px;
+        background: var(--warn-bg);
+        border: 1px solid var(--warn-border);
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 20px;
+        color: var(--warn-text);
+      }
 
-        <style>
-            body {
-                margin: 0;
-                padding: 0;
+      .upv-error-card {
+        text-align: center;
+      }
+      .upv-error-card__title {
+        font-size: 20px;
+        font-weight: 700;
+        margin-bottom: 10px;
+      }
+      .upv-error-card__text {
+        font-size: 13px;
+        color: var(--text-secondary);
+        line-height: 1.7;
+        margin-bottom: 8px;
+      }
 
-                font-family: Arial, Helvetica, sans-serif;
-            }
+      .upv-error-hint {
+        margin-top: 22px;
+        background: var(--bg-input);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 12px 16px;
+        text-align: left;
+      }
 
-            .wrapper {
-                display: flex;
-                width: 100vw;
-                height: 100vh;
-                overflow: auto;
-            }
-
-            .sidebar {
-                display: flex;
-                flex-direction: column;
-                gap: 10px;
-                overflow-y: auto;
-
-                width: 240px;
-                background-color: white;
-                padding: 80px;
-            }
-
-            .main {
-                flex-grow: 10;
-                background-color: rgb(246, 246, 248);
-            }
-
-            .logo {
-                display: flex;
-                justify-content: center;
-            }
-
-            .logo img {
-                max-width: 64px;
-                border-radius: 32px;
-            }
-
-            .group {
-                display: flex;
-                flex-direction: column;
-            }
-
-            .group button {
-                padding: 0 16px;
-                line-height: 32px;
-                border: 1px solid #006fff;
-                border-radius: 4px;
-                color: #fff;
-                background-color: #006fff;
-                cursor: pointer;
-            }
-        </style>
-    </head>
-
-    <body>
-        <div class="wrapper">
-            <div class="sidebar">
-                <div class="logo">
-                    <img src="../../src/img/128.png" alt="logo">
-                </div>
-
-                <div>
-                    <h3>Unifi Protect Viewer</h3>
-
-                    <p>Just an empty page, you should not be here!</p>
-
-                    <p>Maybe the url is not working :/</p>
-
-                    <p><small>Example Url: <br/>https://192.168.1.1/protect/liveview/635e65bd000c1c0387005a5f</small></p>
-                </div>
-
-                <div class="group">
-                    <button onclick="reset()">Reset Config</button>
-                </div>
-            </div>
-
-            <div class="main">
-
-            </div>
+      .upv-error-hint p {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-bottom: 0;
+        line-height: 1.7;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="upv-layout">
+      <!-- ── Sidebar ─────────────────────────────────────────────────────────── -->
+      <aside class="upv-sidebar">
+        <div class="upv-brand">
+          <img class="upv-brand__logo" src="../img/128.png" alt="Logo" />
+          <div>
+            <div class="upv-brand__name">Unifi Protect Viewer</div>
+            <div class="upv-brand__sub">Connection Error</div>
+          </div>
         </div>
 
-        <script type="text/javascript">
-            function reset() {
-                window.electronAPI.reset();
+        <div class="upv-alert upv-alert--warn">
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <p>The configured URL could not be loaded. Check your settings and try again.</p>
+        </div>
 
-                window.electronAPI.restart();
-            }
-        </script>
-    </body>
+        <div class="upv-btn-group">
+          <button class="upv-btn upv-btn--primary" onclick="openConfig()">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14" />
+            </svg>
+            Edit Configuration
+          </button>
+          <button class="upv-btn upv-btn--secondary" onclick="restartApp()">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="1 4 1 10 7 10" />
+              <path d="M3.51 15a9 9 0 1 0 .49-3.5" />
+            </svg>
+            Retry
+          </button>
+          <button class="upv-btn upv-btn--secondary" onclick="resetApp()">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14H6L5 6" />
+              <path d="M10 11v6M14 11v6" />
+              <path d="M9 6V4h6v2" />
+            </svg>
+            Reset All Settings
+          </button>
+        </div>
 
+        <div class="upv-divider"></div>
+
+        <p class="upv-section-title">Keyboard Shortcuts</p>
+        <div class="upv-hotkeys">
+          <div class="upv-hotkey-row"><kbd>F9</kbd><span>Restart</span></div>
+          <div class="upv-hotkey-row"><kbd>F10</kbd><span>Edit Configuration</span></div>
+          <div class="upv-hotkey-row"><kbd>F11</kbd><span>Toggle Fullscreen</span></div>
+        </div>
+      </aside>
+
+      <!-- ── Main panel ──────────────────────────────────────────────────────── -->
+      <main class="upv-main">
+        <div class="upv-card upv-error-card">
+          <div class="upv-error-icon">
+            <svg
+              width="28"
+              height="28"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+              />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          </div>
+
+          <h2 class="upv-error-card__title">Could not connect</h2>
+          <p class="upv-error-card__text">
+            The liveview URL could not be reached. This is usually caused by a wrong URL, incorrect
+            credentials, or the Unifi Protect instance being unavailable.
+          </p>
+          <p class="upv-error-card__text">
+            Use the <strong style="color: var(--text-primary)">Edit Configuration</strong> button on
+            the left to update your settings.
+          </p>
+
+          <div class="upv-error-hint">
+            <p>
+              Make sure your URL looks like one of these:<br /><br />
+              <code class="upv-code-inline">https://192.168.1.1/protect/dashboard/&lt;id&gt;</code
+              ><br /><br />
+              <code class="upv-code-inline">https://192.168.1.1/protect/liveview/&lt;id&gt;</code>
+            </p>
+          </div>
+        </div>
+      </main>
+    </div>
+    <script>
+      function openConfig() {
+        window.electronAPI.openConfig();
+      }
+      function restartApp() {
+        window.electronAPI.restart();
+      }
+      function resetApp() {
+        window.electronAPI.reset();
+        window.electronAPI.restart();
+      }
+    </script>
+  </body>
 </html>

@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Unifi Protect Viewer – Select Profile</title>
+    <link rel="stylesheet" href="shared.css" />
+    <style>
+      /* ── Profile list ────────────────────────────────────────────────────── */
+      .upv-profile-list {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        flex: 1;
+        overflow-y: auto;
+      }
+
+      .upv-profile-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition:
+          border-color 0.18s,
+          background 0.18s,
+          box-shadow 0.18s;
+        user-select: none;
+      }
+
+      .upv-profile-item:hover {
+        border-color: var(--accent);
+        background: rgba(0, 111, 255, 0.06);
+        box-shadow: 0 0 0 2px var(--accent-light);
+      }
+
+      .upv-profile-item--active {
+        border-color: var(--accent);
+        background: rgba(0, 111, 255, 0.08);
+      }
+
+      .upv-profile-item__icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: var(--accent-light);
+        border: 1px solid rgba(0, 111, 255, 0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        color: var(--accent);
+      }
+
+      .upv-profile-item__body {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .upv-profile-item__name {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-primary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .upv-profile-item__url {
+        font-size: 11px;
+        color: var(--text-muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-top: 2px;
+      }
+
+      .upv-profile-item__arrow {
+        color: var(--text-muted);
+        flex-shrink: 0;
+        transition:
+          color 0.18s,
+          transform 0.18s;
+      }
+
+      .upv-profile-item:hover .upv-profile-item__arrow {
+        color: var(--accent);
+        transform: translateX(2px);
+      }
+
+      /* ── Startup checkbox ────────────────────────────────────────────────── */
+      .upv-startup-option {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        background: var(--warn-bg);
+        border: 1px solid var(--warn-border);
+        border-radius: var(--radius-sm);
+        margin-top: 6px;
+        cursor: pointer;
+      }
+
+      .upv-startup-option input[type='checkbox'] {
+        accent-color: var(--accent);
+        width: 14px;
+        height: 14px;
+        flex-shrink: 0;
+        cursor: pointer;
+      }
+
+      .upv-startup-option__text {
+        font-size: 11px;
+        color: var(--warn-text);
+        line-height: 1.5;
+        cursor: pointer;
+      }
+
+      /* ── Empty state ─────────────────────────────────────────────────────── */
+      .upv-empty {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        color: var(--text-muted);
+        font-size: 13px;
+        text-align: center;
+        padding: 24px;
+      }
+
+      /* ── Sidebar note ────────────────────────────────────────────────────── */
+      .upv-sidebar-note {
+        font-size: 10px;
+        color: var(--text-muted);
+        line-height: 1.6;
+        margin-top: auto;
+        padding-top: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="upv-layout">
+      <!-- ── Sidebar ─────────────────────────────────────────────────────────── -->
+      <aside class="upv-sidebar">
+        <div class="upv-brand">
+          <img class="upv-brand__logo" src="../img/128.png" alt="Logo" />
+          <div>
+            <div class="upv-brand__name">Unifi Protect Viewer</div>
+            <div class="upv-brand__sub">Select Profile</div>
+          </div>
+        </div>
+
+        <p class="upv-section-title">Profiles</p>
+
+        <div class="upv-profile-list" id="profileList">
+          <!-- rendered by JS -->
+        </div>
+
+        <div class="upv-startup-option" id="startupOption" style="display: none">
+          <input type="checkbox" id="startupCheck" />
+          <label class="upv-startup-option__text" for="startupCheck"
+            >Always start with this profile (skip selection next time)</label
+          >
+        </div>
+
+        <div class="upv-divider"></div>
+
+        <div class="upv-btn-group">
+          <button class="upv-btn upv-btn--secondary" onclick="openConfig()">
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+              />
+            </svg>
+            Edit Profiles
+          </button>
+        </div>
+
+        <div class="upv-divider"></div>
+
+        <p class="upv-section-title">Keyboard Shortcuts</p>
+        <div class="upv-hotkeys">
+          <div class="upv-hotkey-row"><kbd>F9</kbd><span>Restart</span></div>
+          <div class="upv-hotkey-row"><kbd>F10</kbd><span>Switch Profile</span></div>
+          <div class="upv-hotkey-row"><kbd>F11</kbd><span>Toggle Fullscreen</span></div>
+        </div>
+
+        <div class="upv-sidebar-note">
+          Click a profile to connect. Use F10 during liveview to cycle between profiles.
+        </div>
+      </aside>
+
+      <!-- ── Main panel ──────────────────────────────────────────────────────── -->
+      <main class="upv-main">
+        <div class="upv-card">
+          <div class="upv-card__header">
+            <div class="upv-card__icon">
+              <img
+                src="../img/128.png"
+                alt="Logo"
+                style="width: 34px; height: 34px; border-radius: 9px; display: block"
+              />
+            </div>
+            <div>
+              <h2 class="upv-card__title">Select a Profile</h2>
+              <p class="upv-card__subtitle" id="profileCountText">Loading profiles…</p>
+            </div>
+          </div>
+
+          <p class="upv-card__body">
+            Choose which NVR or dashboard you want to connect to. You can switch profiles at any
+            time using <strong style="color: var(--text-primary)">F10</strong> or via the system
+            tray menu.
+          </p>
+
+          <div class="upv-info-section">
+            <h4 class="upv-info-section__heading">Quick Start Tip</h4>
+            <p class="upv-info-section__text">
+              Select a profile on the left and optionally check
+              <em>"Always start with this profile"</em> to skip this screen next time. You can reset
+              this preference from the configuration editor.
+            </p>
+          </div>
+
+          <div class="upv-info-section" id="activeProfileInfo" style="display: none">
+            <h4 class="upv-info-section__heading">Selected Profile</h4>
+            <div
+              class="upv-code-block"
+              id="activeProfileUrl"
+              style="word-break: break-all; white-space: normal"
+            ></div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      let profiles = [];
+      let selectedId = null;
+
+      async function init() {
+        profiles = (await window.electronAPI.profilesLoad()) || [];
+        const currentActiveId = await window.electronAPI.activeProfileGet();
+        selectedId = currentActiveId || (profiles[0] && profiles[0].id);
+
+        const countText = document.getElementById('profileCountText');
+        countText.textContent =
+          profiles.length === 1 ? '1 profile configured' : `${profiles.length} profiles configured`;
+
+        renderProfiles();
+
+        // Show startup option only when multiple profiles
+        if (profiles.length > 1) {
+          document.getElementById('startupOption').style.display = 'flex';
+        }
+      }
+
+      function renderProfiles() {
+        const list = document.getElementById('profileList');
+        list.innerHTML = '';
+
+        if (profiles.length === 0) {
+          list.innerHTML =
+            '<div class="upv-empty"><span>No profiles found.</span><span>Use "Edit Profiles" to create one.</span></div>';
+          return;
+        }
+
+        profiles.forEach((p) => {
+          const item = document.createElement('div');
+          item.className =
+            'upv-profile-item' + (p.id === selectedId ? ' upv-profile-item--active' : '');
+          item.dataset.id = p.id;
+          item.innerHTML = `
+            <div class="upv-profile-item__icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="2" y1="12" x2="22" y2="12"/>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+              </svg>
+            </div>
+            <div class="upv-profile-item__body">
+              <div class="upv-profile-item__name">${escHtml(p.name || 'Unnamed Profile')}</div>
+              <div class="upv-profile-item__url">${escHtml(p.url || '—')}</div>
+            </div>
+            <div class="upv-profile-item__arrow">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </div>
+          `;
+          item.addEventListener('click', () => selectProfile(p.id));
+          list.appendChild(item);
+        });
+
+        updateActiveProfileInfo();
+      }
+
+      function selectProfile(id) {
+        selectedId = id;
+        document.querySelectorAll('.upv-profile-item').forEach((el) => {
+          el.classList.toggle('upv-profile-item--active', el.dataset.id === id);
+        });
+        updateActiveProfileInfo();
+
+        const startupChecked = document.getElementById('startupCheck').checked;
+        if (startupChecked) {
+          window.electronAPI.startupProfileSet(id);
+        }
+
+        window.electronAPI.launchProfile(id);
+      }
+
+      function updateActiveProfileInfo() {
+        const profile = profiles.find((p) => p.id === selectedId);
+        const info = document.getElementById('activeProfileInfo');
+        const urlEl = document.getElementById('activeProfileUrl');
+        if (profile && profile.url) {
+          info.style.display = 'block';
+          urlEl.textContent = profile.url;
+        } else {
+          info.style.display = 'none';
+        }
+      }
+
+      function openConfig() {
+        window.electronAPI.openConfig();
+      }
+
+      function escHtml(str) {
+        return str
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      // Clear startup profile if checkbox unchecked when leaving
+      document.getElementById('startupCheck').addEventListener('change', function () {
+        if (!this.checked) {
+          window.electronAPI.startupProfileSet(null);
+        }
+      });
+
+      window.addEventListener('DOMContentLoaded', init);
+    </script>
+  </body>
+</html>

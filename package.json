@@ -1,41 +1,58 @@
 {
   "name": "unifi-protect-viewer",
-  "version": "0.3.5",
-  "description": "Electron app for Unifi Protect Live View.",
-  "main": "main.js",
+  "version": "1.0.0",
+  "description": "Distraction-free fullscreen liveview for Unifi Protect — auto-login, session renewal, dark theme and system tray support.",
+  "main": "src/main.js",
   "scripts": {
     "start": "electron --ignore=builds .",
-    "build": "npm run build:x64:linux && npm run build:arm64:linux && npm run build:ia32:windows",
-    "build:portable": "npm run build:x64:linux:portable && npm run build:arm64:linux:portable && npm run build:ia32:windows:portable",
-    "build:macos": "npm run run build:x64:macos && npm run build:arm64:macos",
-    "build:macos:portable": "npm run run build:x64:macos:portable && npm run build:arm64:macos:portable",
-    "build:ia32:windows": "electron-packager ./ unifi-protect-viewer --overwrite --asar --platform win32 --arch ia32 --icon ./src/img/128.png --prune true --out builds --version-string.CompanyName=CE --version-string.FileDescription=CE --version-string.ProductName=\"unifi-protect-viewer\"",
-    "build:ia32:windows:portable": "electron-packager ./ unifi-protect-viewer-portable --overwrite --asar --platform win32 --arch ia32 --icon ./src/img/128.png --prune true --out builds --version-string.CompanyName=CE --version-string.FileDescription=CE --version-string.ProductName=\"unifi-protect-viewer\"",
-    "build:x64:macos": "electron-packager ./ unifi-protect-viewer --overwrite --platform darwin --arch x64 --icon ./src/img/128.png --prune=true --out=builds",
-    "build:x64:macos:portable": "electron-packager ./ unifi-protect-viewer-portable --overwrite --platform darwin --arch x64 --icon ./src/img/128.png --prune=true --out=builds",
-    "build:arm64:macos": "electron-packager ./ unifi-protect-viewer --overwrite --platform darwin --arch arm64 --icon ./src/img/128.png --prune=true --out=builds",
-    "build:arm64:macos:portable": "electron-packager ./ unifi-protect-viewer-portable --overwrite --platform darwin --arch arm64 --icon ./src/img/128.png --prune=true --out=builds",
-    "build:x64:linux": "electron-packager ./ unifi-protect-viewer --overwrite --asar --platform linux --arch x64 --icon ./src/img/128.png --prune true --out builds",
-    "build:x64:linux:portable": "electron-packager ./ unifi-protect-viewer-portable --overwrite --asar --platform linux --arch x64 --icon ./src/img/128.png --prune true --out builds",
-    "build:arm64:linux": "electron-packager ./ unifi-protect-viewer --overwrite --asar --platform linux --arch arm64 --icon ./src/img/128.png --prune true --out builds",
-    "build:arm64:linux:portable": "electron-packager ./ unifi-protect-viewer-portable --overwrite --asar --platform linux --arch arm64 --icon ./src/img/128.png --prune true --out builds",
-    "rename": "node scripts/rename-builds.js"
+    "build": "node scripts/build.js",
+    "build:win:x64": "cross-env UPV_PLATFORM=win32 UPV_ARCH=x64 node scripts/build.js",
+    "build:win:ia32": "cross-env UPV_PLATFORM=win32 UPV_ARCH=ia32 node scripts/build.js",
+    "build:mac:x64": "cross-env UPV_PLATFORM=darwin UPV_ARCH=x64 node scripts/build.js",
+    "build:mac:arm64": "cross-env UPV_PLATFORM=darwin UPV_ARCH=arm64 node scripts/build.js",
+    "build:linux:x64": "cross-env UPV_PLATFORM=linux UPV_ARCH=x64 node scripts/build.js",
+    "build:linux:arm64": "cross-env UPV_PLATFORM=linux UPV_ARCH=arm64 node scripts/build.js",
+    "build:win:x64:portable": "cross-env UPV_PLATFORM=win32 UPV_ARCH=x64 UPV_PORTABLE=true node scripts/build.js",
+    "build:win:ia32:portable": "cross-env UPV_PLATFORM=win32 UPV_ARCH=ia32 UPV_PORTABLE=true node scripts/build.js",
+    "build:mac:x64:portable": "cross-env UPV_PLATFORM=darwin UPV_ARCH=x64 UPV_PORTABLE=true node scripts/build.js",
+    "build:mac:arm64:portable": "cross-env UPV_PLATFORM=darwin UPV_ARCH=arm64 UPV_PORTABLE=true node scripts/build.js",
+    "build:linux:x64:portable": "cross-env UPV_PLATFORM=linux UPV_ARCH=x64 UPV_PORTABLE=true node scripts/build.js",
+    "build:linux:arm64:portable": "cross-env UPV_PLATFORM=linux UPV_ARCH=arm64 UPV_PORTABLE=true node scripts/build.js",
+    "format": "prettier --write \"src/**/*.{js,html,css}\"",
+    "prepare": "node scripts/change-commit-hook-permissions.js && husky",
+    "release": "node scripts/release.js"
   },
   "keywords": [
-    "app",
     "electron",
     "unifi",
-    "protect",
-    "viewer"
+    "unifi-protect",
+    "liveview",
+    "camera",
+    "surveillance",
+    "fullscreen",
+    "kiosk",
+    "ubiquiti"
   ],
   "author": "Sebastian Loer",
-  "license": "",
-  "devDependencies": {
-    "electron": "29.1.5",
-    "electron-packager": "17.1.2",
-    "electron-reloader": "1.2.3"
-  },
+  "license": "MIT",
   "dependencies": {
     "electron-store": "8.2.0"
+  },
+  "devDependencies": {
+    "cross-env": "7.0.3",
+    "electron": "39.6.1",
+    "electron-packager": "17.1.2",
+    "electron-reloader": "1.2.3",
+    "husky": "9.1.7",
+    "lint-staged": "16.2.7",
+    "prettier": "3.8.1"
+  },
+  "lint-staged": {
+    "*.{js,html,css}": [
+      "prettier --config .prettierrc.json --write"
+    ]
+  },
+  "volta": {
+    "node": "20.19.5"
   }
 }

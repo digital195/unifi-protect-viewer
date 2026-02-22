@@ -1,0 +1,175 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Unifi Protect Viewer – GitHub Actions Build & Release Pipeline
+#
+# Triggered on version tags (e.g. v1.0.0 / v1.0.0-rc1).
+#
+# Pre-release tags (containing '-') only build the 3 entries marked
+# prerelease_build: true  →  win32-x64, darwin-arm64, linux-x64  (all portable).
+# Full releases build all 12 matrix entries.
+#
+# ── Secrets ───────────────────────────────────────────────────────────────────
+#   GITHUB_TOKEN       – provided automatically
+#   UPV_ENCRYPTION_KEY – encryption key for portable builds
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'
+      - 'v[0-9]*.[0-9]*.[0-9]*-*'
+
+env:
+  OUT_DIR: builds
+
+jobs:
+
+  # ── Build ─────────────────────────────────────────────────────────────────────
+  build:
+    name: ${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.portable == 'true' && '-portable' || '' }}
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Windows
+          - { runner: windows-latest, platform: win32,  arch: x64,   portable: 'false', prerelease_build: false }
+          - { runner: windows-latest, platform: win32,  arch: x64,   portable: 'true',  prerelease_build: true  }
+          - { runner: windows-latest, platform: win32,  arch: ia32,  portable: 'false', prerelease_build: false }
+          - { runner: windows-latest, platform: win32,  arch: ia32,  portable: 'true',  prerelease_build: false }
+          # macOS
+          - { runner: macos-latest,   platform: darwin, arch: x64,   portable: 'false', prerelease_build: false }
+          - { runner: macos-latest,   platform: darwin, arch: x64,   portable: 'true',  prerelease_build: false }
+          - { runner: macos-latest,   platform: darwin, arch: arm64, portable: 'false', prerelease_build: false }
+          - { runner: macos-latest,   platform: darwin, arch: arm64, portable: 'true',  prerelease_build: true  }
+          # Linux
+          - { runner: ubuntu-latest,  platform: linux,  arch: x64,   portable: 'false', prerelease_build: false }
+          - { runner: ubuntu-latest,  platform: linux,  arch: x64,   portable: 'true',  prerelease_build: true  }
+          - { runner: ubuntu-latest,  platform: linux,  arch: arm64, portable: 'false', prerelease_build: false }
+          - { runner: ubuntu-latest,  platform: linux,  arch: arm64, portable: 'true',  prerelease_build: false }
+
+    steps:
+      # GitHub Actions does not allow matrix values in a job-level if:.
+      # This guard step exits early for pre-release tags on non-prerelease_build entries.
+      - name: Guard
+        id: guard
+        shell: bash
+        run: |
+          IS_PRE="${{ contains(github.ref_name, '-') }}"
+          IS_PRE_BUILD="${{ matrix.prerelease_build }}"
+          if [[ "$IS_PRE" == "true" && "$IS_PRE_BUILD" == "false" ]]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true"  >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Dependencies
+        if: steps.guard.outputs.run == 'true'
+        run: npm ci
+
+      - name: Build
+        if: steps.guard.outputs.run == 'true'
+        env:
+          UPV_PLATFORM:       ${{ matrix.platform }}
+          UPV_ARCH:           ${{ matrix.arch }}
+          UPV_PORTABLE:       ${{ matrix.portable }}
+          UPV_OUT_DIR:        ${{ env.OUT_DIR }}
+          UPV_ENCRYPTION_KEY: ${{ secrets.UPV_ENCRYPTION_KEY }}
+        run: node scripts/build.js
+
+      - name: Resolve Build Directory
+        if: steps.guard.outputs.run == 'true'
+        id: resolve
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PORTABLE_SUFFIX="${{ matrix.portable == 'true' && '-portable' || '' }}"
+          EXPECTED="unifi-protect-viewer-${{ matrix.platform }}-${{ matrix.arch }}-${VERSION}${PORTABLE_SUFFIX}"
+          ARCHIVE_EXT="${{ matrix.platform == 'darwin' && 'tar.gz' || 'zip' }}"
+          ARCHIVE_NAME="${EXPECTED}.${ARCHIVE_EXT}"
+
+          if [ -d "${{ env.OUT_DIR }}/${EXPECTED}" ]; then
+            DIR_NAME="${EXPECTED}"
+          else
+            DIR_NAME="$(ls -d ${{ env.OUT_DIR }}/unifi-protect-viewer-${{ matrix.platform }}-${{ matrix.arch }}-*${PORTABLE_SUFFIX} 2>/dev/null | head -1 | xargs basename)"
+          fi
+
+          echo "dir_name=${DIR_NAME}"         >> "$GITHUB_OUTPUT"
+          echo "archive_name=${ARCHIVE_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Create Archive
+        if: steps.guard.outputs.run == 'true'
+        shell: bash
+        run: |
+          cd "${{ env.OUT_DIR }}"
+          DIR_NAME="${{ steps.resolve.outputs.dir_name }}"
+          ARCHIVE_NAME="${{ steps.resolve.outputs.archive_name }}"
+
+          if [ ! -d "${DIR_NAME}" ]; then
+            echo "ERROR: build directory '${DIR_NAME}' not found"; ls; exit 1
+          fi
+
+          if   [ "${{ matrix.platform }}" = "darwin"         ]; then tar -czf "${ARCHIVE_NAME}" "${DIR_NAME}"
+          elif [ "${{ matrix.runner }}"   = "windows-latest" ]; then 7z a -tzip -mx=9 "${ARCHIVE_NAME}" "${DIR_NAME}" > /dev/null
+          else                                                        zip -9 -r "${ARCHIVE_NAME}" "${DIR_NAME}"
+          fi
+          echo "Created ${ARCHIVE_NAME}  ($(du -sh "${ARCHIVE_NAME}" | cut -f1))"
+
+      - name: Upload Artefact
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.resolve.outputs.archive_name }}
+          path: ${{ env.OUT_DIR }}/${{ steps.resolve.outputs.archive_name }}
+          retention-days: 1
+
+  # ── Release ───────────────────────────────────────────────────────────────────
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    # always() so skipped matrix jobs (pre-release) don't block this job.
+    if: always() && !contains(needs.build.result, 'failure') && !contains(needs.build.result, 'cancelled')
+
+    steps:
+      - name: Download Artefacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name:       Unifi Protect Viewer ${{ github.ref_name }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          body: |
+            ## Unifi Protect Viewer ${{ github.ref_name }}
+
+            Each archive contains a self-contained executable – no installation required.
+
+            | Variant | Platform | Arch |
+            |---------|----------|------|
+            | Standard | Windows / macOS / Linux | x64 · ia32 · arm64 |
+            | **Portable** | Windows / macOS / Linux | x64 · ia32 · arm64 |
+
+            > **Portable builds** store the configuration next to the executable,
+            > making them ideal for USB sticks or shared machines.
+          files: |
+            dist/*.zip
+            dist/*.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+

@@ -1,0 +1,389 @@
+/*
+ * shared.css
+ * Common styles for config.html and index.html.
+ * Page-specific rules live in a <style> block inside each HTML file.
+ */
+
+/* ── Reset & base ─────────────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg-primary: #0f1117;
+  --bg-secondary: #181c27;
+  --bg-card: #1e2336;
+  --bg-input: #252b3b;
+  --border: #2e3650;
+  --border-focus: #006fff;
+  --border-hover: #3e4d6a;
+  --accent: #006fff;
+  --accent-hover: #0059d4;
+  --accent-light: rgba(0, 111, 255, 0.12);
+  --text-primary: #e8ecf4;
+  --text-secondary: #8b93a8;
+  --text-muted: #55607a;
+  --error-bg: rgba(255, 60, 60, 0.1);
+  --error-border: #ff3c3c;
+  --error-text: #ff7070;
+  --success-bg: rgba(0, 200, 100, 0.1);
+  --success-border: #00c864;
+  --success-text: #00e87a;
+  --warn-bg: rgba(255, 160, 0, 0.08);
+  --warn-border: #ffa000;
+  --warn-text: #ffb733;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family:
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Two-column layout ───────────────────────────────────────────────────── */
+
+.upv-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  min-height: 100vh;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+
+.upv-sidebar {
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px;
+  overflow-y: auto;
+}
+
+/* ── Brand block ─────────────────────────────────────────────────────────── */
+
+.upv-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 12px;
+}
+
+.upv-brand__logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  flex-shrink: 0;
+}
+
+.upv-brand__name {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.upv-brand__sub {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ── Section heading ─────────────────────────────────────────────────────── */
+
+.upv-section-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+  margin-top: 11px;
+}
+
+.upv-section-title:first-of-type {
+  margin-top: 0;
+}
+
+/* ── Divider ─────────────────────────────────────────────────────────────── */
+
+.upv-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 11px 0;
+}
+
+/* ── Alert / hint box ────────────────────────────────────────────────────── */
+
+.upv-alert {
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  margin-bottom: 9px;
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+.upv-alert--warn {
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+}
+
+.upv-alert--warn svg {
+  color: var(--warn-text);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.upv-alert--warn p {
+  font-size: 11px;
+  color: var(--warn-text);
+  line-height: 1.55;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+
+.upv-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  width: 100%;
+  text-decoration: none;
+  transition:
+    background 0.18s,
+    opacity 0.18s,
+    transform 0.18s,
+    box-shadow 0.18s;
+}
+
+.upv-btn:active {
+  transform: scale(0.98);
+}
+
+.upv-btn--primary {
+  background: var(--accent);
+  color: #fff;
+}
+.upv-btn--primary:hover {
+  background: var(--accent-hover);
+  box-shadow: 0 2px 12px rgba(0, 111, 255, 0.35);
+}
+.upv-btn--primary:disabled {
+  background: #1c3060;
+  color: #4a6090;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.upv-btn--secondary {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.upv-btn--secondary:hover {
+  background: var(--bg-card);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
+.upv-btn-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+/* ── Keyboard shortcuts ──────────────────────────────────────────────────── */
+
+.upv-hotkeys {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.upv-hotkey-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.upv-hotkey-row kbd {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-family: 'Consolas', 'Courier New', monospace;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.upv-hotkey-row span {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* ── Main content area ───────────────────────────────────────────────────── */
+
+.upv-main {
+  background: var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+/* ── Card (right panel) ──────────────────────────────────────────────────── */
+
+.upv-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 36px;
+  max-width: 540px;
+  width: 100%;
+  box-shadow: var(--shadow-card);
+}
+
+.upv-card__header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.upv-card__icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.upv-card__title {
+  font-size: 19px;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+.upv-card__subtitle {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.upv-card__body {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* ── Info section inside card ────────────────────────────────────────────── */
+
+.upv-info-section {
+  margin-top: 20px;
+}
+
+.upv-info-section__heading {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.upv-info-section__text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+
+/* ── Version badges ──────────────────────────────────────────────────────── */
+
+.upv-badge {
+  display: inline-flex;
+  align-items: center;
+  background: var(--accent-light);
+  color: var(--accent);
+  border: 1px solid rgba(0, 111, 255, 0.25);
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 5px;
+  margin-bottom: 5px;
+}
+
+/* ── Code / URL example ──────────────────────────────────────────────────── */
+
+.upv-code-block {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 9px 13px;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--accent);
+  overflow-x: auto;
+  white-space: nowrap;
+  margin: 7px 0;
+}
+
+.upv-code-inline {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--bg-input);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
+}

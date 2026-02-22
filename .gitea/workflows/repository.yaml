@@ -1,0 +1,33 @@
+name: Repository
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout SCM
+        uses: actions/checkout@v5
+
+      - name: Tool Install
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: Audit
+        run: |
+          npm audit
+        continue-on-error: true
+
+      - name: Download Dependencies
+        run: |
+          npm ci
+
+      - name: Build
+        run: |
+          npm run build
