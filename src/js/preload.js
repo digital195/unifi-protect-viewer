@@ -593,11 +593,31 @@ async function applyLiveviewV4andNewer() {
   const liveViewEl = document.querySelectorAll(SEL.liveViewWrapper)[0];
   applyStyle(liveViewEl?.querySelectorAll(SEL.commonWidget)[0], 'border', '0');
   applyStyle(liveViewEl?.querySelectorAll(SEL.scrollable)[0], 'paddingBottom', '0');
-  applyStyle(
-    liveViewEl?.querySelectorAll(SEL.viewportWrapper)[0],
-    'maxWidth',
-    'calc(100vh * 1.7777777777777777)',
-  );
+  const viewportWrapperEl = liveViewEl?.querySelectorAll(SEL.viewportWrapper)[0];
+  applyStyle(viewportWrapperEl, 'maxWidth', 'calc(100vh * 1.7777777777777777)');
+
+  // Fix: The maxWidth is computed dynamically and gets lost when the user
+  // navigates away from liveview and comes back. We persist it via a <style>
+  // tag so the value survives React re-mounts.
+  const computedMaxWidth = viewportWrapperEl?.style?.maxWidth || 'calc(100vh * 1.7777777777777777)';
+  const persistStyleId = '__upv_viewport_maxwidth';
+  if (!document.getElementById(persistStyleId)) {
+    const persistStyle = document.createElement('style');
+    persistStyle.id = persistStyleId;
+    const viewportWrapperClass = viewportWrapperEl
+      ? Array.from(viewportWrapperEl.classList).find((c) =>
+          c.startsWith('liveview__ViewportsWrapper'),
+        )
+      : null;
+    const selector = viewportWrapperClass
+      ? `.${viewportWrapperClass}`
+      : '[class^=liveview__ViewportsWrapper]';
+    persistStyle.textContent = `${selector}{max-width:${computedMaxWidth}!important;}`;
+    document.head.appendChild(persistStyle);
+    console.log(
+      `[upv] v4+: persisted maxWidth="${computedMaxWidth}" via <style id="${persistStyleId}">`,
+    );
+  }
 
   console.log('[upv] v4+: waiting for per-camera option buttons');
   const optionsFound = await waitUntil(() =>
