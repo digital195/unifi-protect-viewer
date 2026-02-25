@@ -187,9 +187,11 @@ async function startLiveviewAutomation() {
     10_000,
   );
   if (!versionFound) {
-    console.warn('[upv] version string not found within timeout – defaulting to 3.x behaviour');
+    console.warn(
+      '[upv] version string not found within timeout – will use profile fallback if set',
+    );
   }
-  const protectVersion = resolveProtectVersion();
+  const protectVersion = resolveProtectVersion(document, config);
   console.log('[upv] resolved Protect version:', protectVersion);
 
   // ── Dark theme activation ─────────────────────────────────────────────────
@@ -200,7 +202,11 @@ async function startLiveviewAutomation() {
   // ─────────────────────────────────────────────────────────────────────────
 
   // ── Protect 3.x ──────────────────────────────────────────────────────────
-  if (currentUrlIncludes('protect/dashboard') && protectVersion.startsWith('3.')) {
+  if (
+    currentUrlIncludes('protect/dashboard') &&
+    protectVersion &&
+    protectVersion.startsWith('3.')
+  ) {
     setOverlayStatus('Loading cameras\u2026', 'Applying Protect 3.x layout');
     console.log('[upv] applying Protect 3.x liveview handler (pass 1)');
     await applyLiveviewV3();
@@ -215,9 +221,10 @@ async function startLiveviewAutomation() {
 
   // ── Protect 4.x / 5.x / 6.x ─────────────────────────────────────────────
   if (
-    (currentUrlIncludes('protect/dashboard') && protectVersion.startsWith('4.')) ||
-    protectVersion.startsWith('5.') ||
-    protectVersion.startsWith('6.')
+    protectVersion &&
+    ((currentUrlIncludes('protect/dashboard') && protectVersion.startsWith('4.')) ||
+      protectVersion.startsWith('5.') ||
+      protectVersion.startsWith('6.'))
   ) {
     setOverlayStatus('Loading cameras\u2026', `Applying Protect ${protectVersion} layout`);
     console.log('[upv] applying Protect 4.x/5.x/6.x liveview handler (pass 1)');
@@ -661,18 +668,54 @@ async function applyLiveviewV4andNewer() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Reads the Protect version string from the footer.
- * Falls back to '3.x' when it is absent (Protect 3 does not show it).
- * @returns {string}  e.g. "4.0.21"
+ * Detects the major Unifi Protect version via DOM parsing and optional profile fallback.
+ *
+ * Resolution order:
+ *  1. Read version span containing "Protect X.Y.Z" from the footer DOM.
+ *  2. If DOM detection succeeds → return the mapped major version string (e.g. "6.x").
+ *  3. If DOM detection fails → use profile.protectVersion when defined.
+ *  4. If both fail → return undefined (callers must handle this gracefully).
+ *
+ * @param {Document} doc     - The document object to query (injected for testability).
+ * @param {object}   [profile] - Optional profile object that may carry a protectVersion field.
+ * @returns {"3.x"|"4.x"|"5.x"|"6.x"|undefined}
  */
-function resolveProtectVersion() {
-  const spans = Array.from(document.querySelectorAll('[class^=Version__Item] > span'));
-  const raw = spans.find((el) => el.innerText.includes('Protect'))?.innerHTML ?? 'Protect 3.x';
-  const version = raw.replace('Protect', '').trim();
-  if (!spans.length) {
-    console.log('[upv] no version spans found – defaulting to 3.x');
+function resolveProtectVersion(doc, profile) {
+  // ── Step 1: try DOM detection ────────────────────────────────────────────
+  try {
+    const spans = Array.from(doc.querySelectorAll('[class^=Version__Item] > span'));
+    const matchingSpan = spans.find((el) => el.innerText && el.innerText.includes('Protect'));
+    if (matchingSpan) {
+      const raw = matchingSpan.innerHTML ?? '';
+      const versionString = raw.replace('Protect', '').trim();
+      // Extract the major version number from e.g. "6.2.88"
+      const majorMatch = versionString.match(/^(\d+)\./);
+      if (majorMatch) {
+        const major = majorMatch[1];
+        const mapped = `${major}.x`;
+        if (mapped === '3.x' || mapped === '4.x' || mapped === '5.x' || mapped === '6.x') {
+          console.log(`[upv] DOM version detected: ${versionString} → ${mapped}`);
+          return mapped;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[upv] resolveProtectVersion: DOM detection threw –', e && e.message);
   }
-  return version;
+
+  // ── Step 2: fallback to profile.protectVersion ───────────────────────────
+  if (profile && typeof profile.protectVersion === 'string' && profile.protectVersion.length > 0) {
+    console.log(
+      `[upv] resolveProtectVersion: DOM detection failed – using profile fallback: ${profile.protectVersion}`,
+    );
+    return profile.protectVersion;
+  }
+
+  // ── Step 3: both fail ────────────────────────────────────────────────────
+  console.warn(
+    '[upv] resolveProtectVersion: DOM detection failed and no profile fallback set – newest version 6.x',
+  );
+  return '6.x';
 }
 
 /**

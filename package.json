@@ -1,6 +1,6 @@
 {
   "name": "unifi-protect-viewer",
-  "version": "1.0.1-rc1",
+  "version": "1.0.1-rc2",
   "description": "Distraction-free fullscreen liveview for Unifi Protect — auto-login, session renewal, dark theme and system tray support.",
   "main": "src/main.js",
   "scripts": {

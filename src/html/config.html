@@ -202,8 +202,40 @@
       .upv-pw-toggle:hover {
         color: var(--text-secondary);
       }
-      #credentialFields {
-        display: none;
+      .upv-select {
+        width: 100%;
+        background: var(--bg-input);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        color: var(--text-primary);
+        font-size: 12px;
+        padding: 7px 10px 7px 32px;
+        outline: none;
+        appearance: none;
+        -webkit-appearance: none;
+        cursor: pointer;
+        transition:
+          border-color 0.18s,
+          box-shadow 0.18s,
+          background 0.18s;
+      }
+      .upv-select:hover {
+        border-color: var(--border-hover);
+      }
+      .upv-select:focus {
+        border-color: var(--border-focus);
+        box-shadow: 0 0 0 3px var(--accent-light);
+        background: #1a2038;
+      }
+      .upv-input-wrap__select-arrow {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        pointer-events: none;
       }
       .upv-msg {
         display: none;
@@ -475,6 +507,50 @@
             </div>
           </div>
         </div>
+        <div class="upv-field">
+          <label class="upv-field__label" for="protectVersion">
+            Protect Version
+            <span class="upv-field__badge">optional</span>
+          </label>
+          <div class="upv-input-wrap">
+            <span class="upv-input-wrap__icon">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="16 18 22 12 16 6" />
+                <polyline points="8 6 2 12 8 18" />
+              </svg>
+            </span>
+            <select class="upv-select" id="protectVersion">
+              <option value="">Auto (detect from DOM)</option>
+              <option value="3.x">3.x</option>
+              <option value="4.x">4.x</option>
+              <option value="5.x">5.x</option>
+              <option value="6.x">6.x</option>
+            </select>
+            <span class="upv-input-wrap__select-arrow">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </span>
+          </div>
+        </div>
         <div class="upv-startup-row" id="startupRow" style="display: none">
           <input type="checkbox" id="startupCheck" />
           <label for="startupCheck">Always start with this profile</label>
@@ -693,6 +769,8 @@
         document.getElementById('url').value = p ? p.url || '' : '';
         document.getElementById('username').value = p ? p.username || '' : '';
         document.getElementById('password').value = '';
+        document.getElementById('protectVersion').value =
+          p && p.protectVersion ? p.protectVersion : '';
         originalUsername = p ? p.username || '' : '';
         ['username', 'password'].forEach((f) =>
           document.getElementById(f).classList.remove('upv-input--changed'),
@@ -844,6 +922,13 @@
         }
         if (currentMode === 'url') {
           profiles[profileIdx] = { ...profiles[profileIdx], name, url };
+          // preserve or clear protectVersion from the dropdown
+          const pv = document.getElementById('protectVersion').value;
+          if (pv) {
+            profiles[profileIdx].protectVersion = pv;
+          } else {
+            delete profiles[profileIdx].protectVersion;
+          }
           window.electronAPI.profilesSave(profiles);
           window.electronAPI.activeProfileSet(activeProfileId);
           saveBtn.disabled = true;
@@ -877,7 +962,14 @@
           document.getElementById('password').focus();
           return;
         }
-        profiles[profileIdx] = { ...existing, name, url, username, password: finalPassword };
+        const pvFull = document.getElementById('protectVersion').value;
+        const updatedProfile = { ...existing, name, url, username, password: finalPassword };
+        if (pvFull) {
+          updatedProfile.protectVersion = pvFull;
+        } else {
+          delete updatedProfile.protectVersion;
+        }
+        profiles[profileIdx] = updatedProfile;
         window.electronAPI.profilesSave(profiles);
         window.electronAPI.activeProfileSet(activeProfileId);
         saveBtn.disabled = true;

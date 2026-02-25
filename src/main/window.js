@@ -111,6 +111,8 @@ async function createMainWindow() {
     show: false, // shown via ready-to-show to avoid white flash
   });
 
+  // win.webContents.openDevTools();
+
   // Keep a static title – Unifi Protect updates the title dynamically
   win.setTitle('Unifi Protect Viewer');
   win.on('page-title-updated', (e) => e.preventDefault());
