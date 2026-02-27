@@ -143,6 +143,9 @@
           <div class="upv-hotkey-row"><kbd>F10</kbd><span>Edit Configuration</span></div>
           <div class="upv-hotkey-row"><kbd>F11</kbd><span>Toggle Fullscreen</span></div>
         </div>
+
+        <div class="upv-divider"></div>
+        <div id="debugBlockContainer"></div>
       </aside>
 
       <!-- ── Main panel ──────────────────────────────────────────────────────── -->
@@ -188,7 +191,11 @@
         </div>
       </main>
     </div>
+    <script src="debug-block.js"></script>
     <script>
+      window.addEventListener('DOMContentLoaded', function () {
+        renderDebugBlock(document.getElementById('debugBlockContainer'));
+      });
       function openConfig() {
         window.electronAPI.openConfig();
       }

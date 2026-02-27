@@ -271,7 +271,7 @@ body {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 36px;
+  padding: 28px 32px;
   max-width: 540px;
   width: 100%;
   box-shadow: var(--shadow-card);
@@ -281,7 +281,7 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
-  margin-bottom: 22px;
+  margin-bottom: 16px;
 }
 
 .upv-card__icon {
@@ -313,7 +313,7 @@ body {
 /* ── Info section inside card ────────────────────────────────────────────── */
 
 .upv-info-section {
-  margin-top: 20px;
+  margin-top: 16px;
 }
 
 .upv-info-section__heading {
@@ -322,14 +322,14 @@ body {
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--text-muted);
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .upv-info-section__text {
   font-size: 13px;
   color: var(--text-secondary);
   line-height: 1.6;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 /* ── Version badges ──────────────────────────────────────────────────────── */
@@ -370,6 +370,17 @@ body {
   background: var(--bg-input);
   padding: 1px 6px;
   border-radius: 3px;
+}
+
+/* ── Debug block ─────────────────────────────────────────────────────────── */
+
+.upv-debug-group {
+  margin-bottom: 4px;
+}
+
+.upv-debug-btn {
+  justify-content: flex-start;
+  gap: 8px;
 }
 
 /* ── Scrollbar ───────────────────────────────────────────────────────────── */

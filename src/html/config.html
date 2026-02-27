@@ -284,6 +284,28 @@
       #cancelBtn {
         display: none;
       }
+      .upv-version-info {
+        display: flex;
+        align-items: flex-start;
+        gap: 7px;
+        padding: 7px 10px;
+        margin-bottom: 8px;
+        background: rgba(0, 111, 255, 0.05);
+        border: 1px solid rgba(0, 111, 255, 0.15);
+        border-radius: var(--radius-sm);
+        color: var(--text-muted);
+        font-size: 11px;
+        line-height: 1.55;
+      }
+      .upv-version-info svg {
+        color: var(--accent);
+        opacity: 0.7;
+      }
+      .upv-version-info em {
+        color: var(--text-secondary);
+        font-style: normal;
+        font-weight: 500;
+      }
       .upv-sidebar-note {
         font-size: 10px;
         color: var(--text-muted);
@@ -530,10 +552,15 @@
             </span>
             <select class="upv-select" id="protectVersion">
               <option value="">Auto (detect from DOM)</option>
-              <option value="3.x">3.x</option>
-              <option value="4.x">4.x</option>
-              <option value="5.x">5.x</option>
-              <option value="6.x">6.x</option>
+              <optgroup label="── Legacy ──────────────">
+                <option value="3.x">3.x (Legacy)</option>
+              </optgroup>
+              <optgroup label="── Modern (4.x+) ───────">
+                <option value="4.x">4.x</option>
+                <option value="5.x">5.x</option>
+                <option value="6.x">6.x</option>
+                <option value="7.x">7.x</option>
+              </optgroup>
             </select>
             <span class="upv-input-wrap__select-arrow">
               <svg
@@ -550,6 +577,30 @@
               </svg>
             </span>
           </div>
+        </div>
+        <div id="protectVersionInfo" class="upv-version-info">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            style="flex-shrink: 0; margin-top: 1px"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <p>
+            The app automatically detects your Protect version by reading the version label in the
+            sidebar (e.g. <em>"Protect 7.1.0"</em>). If detection fails, the fallback selected above
+            is used. <strong>Legacy</strong> (3.x) uses a different UI handler.
+            <strong>Modern</strong> (4.x and above, including 7.x+) all share the same UI structure
+            and are handled identically – future versions are supported automatically.
+          </p>
         </div>
         <div class="upv-startup-row" id="startupRow" style="display: none">
           <input type="checkbox" id="startupCheck" />
@@ -672,9 +723,11 @@
               them, or pick one from the system tray menu.
             </p>
           </div>
+          <div class="upv-info-section" id="debugBlockContainer"></div>
         </div>
       </main>
     </div>
+    <script src="debug-block.js"></script>
     <script>
       let currentMode = 'url';
       let profiles = [];
@@ -834,6 +887,8 @@
         updateStartupUI();
       }
       window.addEventListener('DOMContentLoaded', async () => {
+        // Mount shared debug block
+        renderDebugBlock(document.getElementById('debugBlockContainer'));
         setMode('url');
         try {
           profiles = (await window.electronAPI.profilesLoad()) || [];

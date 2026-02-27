@@ -203,6 +203,9 @@
         <div class="upv-sidebar-note">
           Click a profile to connect. Use F10 during liveview to cycle between profiles.
         </div>
+
+        <div class="upv-divider"></div>
+        <div id="debugBlockContainer"></div>
       </aside>
 
       <!-- ── Main panel ──────────────────────────────────────────────────────── -->
@@ -254,6 +257,7 @@
       let selectedId = null;
 
       async function init() {
+        renderDebugBlock(document.getElementById('debugBlockContainer'));
         profiles = (await window.electronAPI.profilesLoad()) || [];
         const currentActiveId = await window.electronAPI.activeProfileGet();
         selectedId = currentActiveId || (profiles[0] && profiles[0].id);
@@ -358,5 +362,6 @@
 
       window.addEventListener('DOMContentLoaded', init);
     </script>
+    <script src="debug-block.js"></script>
   </body>
 </html>

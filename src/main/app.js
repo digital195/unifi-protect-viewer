@@ -9,6 +9,7 @@
 const { app, Menu } = require('electron');
 const { registerIpcHandlers } = require('./ipc');
 const { createMainWindow } = require('./window');
+const { createLogger, LOG_SOURCE_APP } = require('./logger');
 
 // ── Certificate handling ──────────────────────────────────────────────────────
 // Unifi Protect commonly uses self-signed certificates, so we skip TLS errors.
@@ -26,8 +27,18 @@ try {
 
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 
+// Logger is created once the app is ready (userData path available then).
+let _logger = null;
+function getLogger() {
+  return _logger;
+}
+
 app.whenReady().then(async () => {
-  registerIpcHandlers();
+  // Initialise persistent logger (requires userData path → must be inside whenReady)
+  _logger = createLogger({ app });
+  _logger.log(LOG_SOURCE_APP, 'app ready – starting up');
+
+  registerIpcHandlers(getLogger);
   await createMainWindow();
 
   // macOS: re-create the window when the dock icon is clicked and no windows exist

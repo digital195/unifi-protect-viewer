@@ -22,6 +22,9 @@
     "prepare": "node scripts/change-commit-hook-permissions.js && husky",
     "release": "node scripts/release.js"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "keywords": [
     "electron",
     "unifi",

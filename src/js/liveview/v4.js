@@ -2,7 +2,7 @@
 
 /**
  * @file v4.js
- * @description Liveview handler Protect 4.x / 5.x / 6.x – REFERENCE COPY ONLY.
+ * @description Liveview handler Protect 4.x / 5.x / 6.x / 7.x – REFERENCE COPY ONLY.
  *
  * Inlined into src/js/preload.js. Edit here for review, then sync to preload.js.
  */

@@ -8,6 +8,7 @@
 const { ipcMain, BrowserWindow, shell } = require('electron');
 const path = require('node:path');
 const store = require('./store');
+const { LOG_IPC_CHANNEL, LOG_SOURCE_WINDOW, LOG_SOURCE_APP } = require('./logger');
 
 // ── Handler implementations ───────────────────────────────────────────────────
 
@@ -39,6 +40,30 @@ function onOpenConfig(event) {
 
 function onOpenExternal(_event, url) {
   shell.openExternal(url);
+}
+
+// ── getLogger reference (set during registerIpcHandlers) ─────────────────────
+let _getLogger = null;
+
+function onOpenLogFile(_event, logPath) {
+  const resolvedPath = logPath || (_getLogger && _getLogger() && _getLogger().getLogPath());
+  if (resolvedPath) shell.openPath(resolvedPath);
+}
+
+function onOpenDevTools(event) {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) win.webContents.openDevTools();
+}
+
+/**
+ * Receives a log message forwarded from the preload/renderer via IPC.
+ * @param {Function} getLogger – returns the current logger instance (lazy)
+ */
+function makeWindowLogHandler(getLogger) {
+  return function onWindowLog(_event, message) {
+    const logger = getLogger ? getLogger() : null;
+    if (logger) logger.log(LOG_SOURCE_WINDOW, message);
+  };
 }
 
 function onToggleFullscreen(event) {
@@ -135,18 +160,22 @@ function registerF11Handler(win) {
 
 // ── Registration ──────────────────────────────────────────────────────────────
 
-function registerIpcHandlers() {
+function registerIpcHandlers(getLogger) {
+  _getLogger = getLogger || null;
   ipcMain.on('reset', onReset);
   ipcMain.on('restart', onRestart);
   ipcMain.on('configSave', onConfigSave);
   ipcMain.on('openConfig', onOpenConfig);
   ipcMain.on('openExternal', onOpenExternal);
+  ipcMain.on('openLogFile', onOpenLogFile);
+  ipcMain.on('openDevTools', onOpenDevTools);
   ipcMain.on('toggleFullscreen', onToggleFullscreen);
   ipcMain.on('profilesSave', onProfilesSave);
   ipcMain.on('activeProfileSet', onActiveProfileSet);
   ipcMain.on('startupProfileSet', onStartupProfileSet);
   ipcMain.on('switchNextProfile', onSwitchNextProfile);
   ipcMain.on('launchProfile', onLaunchProfile);
+  ipcMain.on(LOG_IPC_CHANNEL, makeWindowLogHandler(getLogger));
 
   ipcMain.handle('configLoad', onConfigLoad);
   ipcMain.handle('profilesLoad', onProfilesLoad);
@@ -154,4 +183,4 @@ function registerIpcHandlers() {
   ipcMain.handle('startupProfileGet', onStartupProfileGet);
 }
 
-module.exports = { registerIpcHandlers, registerF11Handler };
+module.exports = { registerIpcHandlers, registerF11Handler, makeWindowLogHandler };
