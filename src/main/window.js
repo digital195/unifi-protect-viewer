@@ -19,6 +19,32 @@ const DEFAULT_WIDTH = 1280;
 const DEFAULT_HEIGHT = 760;
 const ICON_PATH = path.join(__dirname, '../img/128.png');
 
+// ── Display helpers ───────────────────────────────────────────────────────────
+
+/**
+ * Returns all displays sorted in a predictable order that matches what the user
+ * sees in Windows Display Settings: primary display first, then remaining
+ * displays sorted left-to-right, then top-to-bottom by their top-left corner.
+ *
+ * This ensures that --monitor 1 = primary, --monitor 2 = next display to the
+ * right, regardless of the arbitrary order Electron / the OS reports them in.
+ *
+ * @returns {Electron.Display[]}
+ */
+function getSortedDisplays() {
+  const displays = screen.getAllDisplays();
+  const primary = screen.getPrimaryDisplay();
+
+  return [...displays].sort((a, b) => {
+    // Primary always comes first
+    if (a.id === primary.id) return -1;
+    if (b.id === primary.id) return 1;
+    // Then sort by x (left to right), break ties by y (top to bottom)
+    if (a.bounds.x !== b.bounds.x) return a.bounds.x - b.bounds.x;
+    return a.bounds.y - b.bounds.y;
+  });
+}
+
 // ── Initial page loading ──────────────────────────────────────────────────────
 
 /**
@@ -105,12 +131,75 @@ async function loadInitialPage(win, cliArgs = {}) {
  */
 async function createMainWindow(cliArgs = {}) {
   const bounds = store.getWindowBounds();
+  const startupSettings = store.getStartupSettings();
+
+  // ── Resolve effective display/fullscreen settings before creating the window ─
+  // CLI always wins over store settings.
+
+  // CLI --fullscreen overrides store setting; null means "use store value"
+  const effectiveFullscreen =
+    cliArgs.fullscreen !== null && cliArgs.fullscreen !== undefined
+      ? cliArgs.fullscreen
+      : startupSettings.fullscreen;
+
+  // Whether an explicit --monitor CLI arg was given (1-based)
+  const cliMonitorRequested = cliArgs.monitor !== null && cliArgs.monitor !== undefined;
+
+  // Determine effective 0-based display index:
+  //  - CLI --monitor (1-based) always wins → subtract 1
+  //  - Store displayIndex is only respected when fullscreen is active (no CLI monitor given)
+  const effectiveDisplayIndex = cliMonitorRequested
+    ? cliArgs.monitor - 1
+    : (startupSettings.displayIndex ?? 0);
+
+  // ── Calculate initial window position/size ───────────────────────────────────
+  // Saved bounds may contain Fullscreen coordinates from the previous session.
+  // We must never use those for normal (non-fullscreen) window placement.
+  //
+  // Strategy:
+  //   • Fullscreen requested         → target display origin + full display size
+  //   • --monitor requested, no FS   → target display, centered, DEFAULT size (never stale FS bounds)
+  //   • Neither                      → restore saved bounds (position + size)
+
+  let initialX;
+  let initialY;
+  let initialWidth;
+  let initialHeight;
+
+  if (effectiveFullscreen || cliMonitorRequested) {
+    const displays = getSortedDisplays();
+    const idx = Math.max(0, Math.min(effectiveDisplayIndex, displays.length - 1));
+    const targetDisplay = displays[idx];
+
+    if (effectiveFullscreen) {
+      // Full display dimensions – Electron will enter fullscreen on this display
+      initialX = targetDisplay.bounds.x;
+      initialY = targetDisplay.bounds.y;
+      initialWidth = targetDisplay.bounds.width;
+      initialHeight = targetDisplay.bounds.height;
+    } else {
+      // --monitor without --fullscreen: centre window on target display.
+      // Always use DEFAULT size – saved bounds may be stale Fullscreen coords.
+      initialWidth = DEFAULT_WIDTH;
+      initialHeight = DEFAULT_HEIGHT;
+      initialX =
+        targetDisplay.bounds.x + Math.round((targetDisplay.bounds.width - initialWidth) / 2);
+      initialY =
+        targetDisplay.bounds.y + Math.round((targetDisplay.bounds.height - initialHeight) / 2);
+    }
+  } else {
+    // Restore last saved position/size (no CLI overrides active)
+    initialX = bounds?.x ?? undefined;
+    initialY = bounds?.y ?? undefined;
+    initialWidth = bounds?.width ?? DEFAULT_WIDTH;
+    initialHeight = bounds?.height ?? DEFAULT_HEIGHT;
+  }
 
   const win = new BrowserWindow({
-    width: bounds?.width ?? DEFAULT_WIDTH,
-    height: bounds?.height ?? DEFAULT_HEIGHT,
-    x: bounds?.x ?? undefined,
-    y: bounds?.y ?? undefined,
+    width: initialWidth,
+    height: initialHeight,
+    x: initialX,
+    y: initialY,
     minWidth: 800,
     minHeight: 500,
 
@@ -139,13 +228,43 @@ async function createMainWindow(cliArgs = {}) {
   win.setTitle('Unifi Protect Viewer');
   win.on('page-title-updated', (e) => e.preventDefault());
 
+  // ── Track pre-fullscreen bounds so we never persist fullscreen coordinates ───
+  // When the window enters fullscreen, getBounds() returns the display's full
+  // size. We capture the windowed bounds *before* entering fullscreen so the
+  // next launch always restores the correct windowed position/size.
+  let preFsBounds = null;
+
+  win.on('enter-full-screen', () => {
+    preFsBounds = win.getBounds();
+  });
+
+  win.on('leave-full-screen', () => {
+    // Bounds are restored by Electron automatically; clear our snapshot
+    preFsBounds = null;
+  });
+
+  // Apply fullscreen after window is created
+  if (effectiveFullscreen) {
+    // Save the initial windowed bounds before going fullscreen so that if the
+    // user quits while still in fullscreen we have a sane fallback
+    preFsBounds = {
+      x: initialX ?? 0,
+      y: initialY ?? 0,
+      width: initialWidth,
+      height: initialHeight,
+    };
+    win.setFullScreen(true);
+  }
+
   // Reveal window once the renderer is ready
   win.once('ready-to-show', () => win.show());
 
-  // Persist window geometry on close (skipped in portable mode)
+  // Persist window geometry on close – always save pre-fullscreen bounds when
+  // available so the next launch opens in the correct windowed position/size.
   win.on('close', () => {
     if (store.isInitialised()) {
-      store.saveWindowBounds(win.getBounds());
+      const boundsToSave = preFsBounds ?? win.getBounds();
+      store.saveWindowBounds(boundsToSave);
     }
   });
 
@@ -165,49 +284,6 @@ async function createMainWindow(cliArgs = {}) {
   });
 
   await loadInitialPage(win, cliArgs);
-
-  // ── Apply display/fullscreen settings (CLI overrides take priority) ──────────
-  const startupSettings = store.getStartupSettings();
-
-  // CLI --fullscreen overrides store setting; null means "use store value"
-  const effectiveFullscreen =
-    cliArgs.fullscreen !== null && cliArgs.fullscreen !== undefined
-      ? cliArgs.fullscreen
-      : startupSettings.fullscreen;
-
-  // Whether an explicit --monitor CLI arg was given
-  const cliMonitorRequested = cliArgs.monitor !== null && cliArgs.monitor !== undefined;
-
-  // Determine effective display index:
-  //  - CLI --monitor (1-based) → subtract 1 for 0-based array index
-  //  - Store displayIndex is used only when fullscreen is active (it controls which screen
-  //    to go fullscreen on). Without fullscreen it must NOT override the saved window position.
-  const effectiveDisplayIndex = cliMonitorRequested
-    ? cliArgs.monitor - 1
-    : (startupSettings.displayIndex ?? 0);
-
-  // Reposition the window only when:
-  //  - Fullscreen is requested (move to the target display first), OR
-  //  - An explicit CLI --monitor arg was given (intentional monitor override)
-  //
-  // Importantly: store.displayIndex alone (without fullscreen) must NOT trigger a
-  // setBounds() call — doing so would overwrite the user's saved window position.
-  if (effectiveFullscreen || cliMonitorRequested) {
-    const displays = screen.getAllDisplays();
-    const idx = Math.max(0, Math.min(effectiveDisplayIndex, displays.length - 1));
-    const targetDisplay = displays[idx];
-    if (targetDisplay) {
-      win.setBounds({
-        x: targetDisplay.bounds.x,
-        y: targetDisplay.bounds.y,
-        width: targetDisplay.bounds.width,
-        height: targetDisplay.bounds.height,
-      });
-    }
-    if (effectiveFullscreen) {
-      win.setFullScreen(true);
-    }
-  }
 
   return win;
 }

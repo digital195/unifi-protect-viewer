@@ -266,3 +266,50 @@ describe('cli.js – process.argv default', () => {
     assert.ok(typeof result.profile === 'string' || result.profile === null);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PACKAGED APP (single-prefix argv)
+// Regression: in a packaged Electron .exe, argv has only ONE prefix entry
+// (the .exe path) instead of two (electron + script). The old slice(2) would
+// silently drop --monitor and its value in this case.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('cli.js – packaged app argv (single prefix)', () => {
+  // Simulate: ['/path/to/app.exe', '--monitor', '2', '--fullscreen']
+  function argvPacked(...args) {
+    return ['/path/to/unifi-protect-viewer.exe', ...args];
+  }
+
+  test('--monitor 2 is parsed correctly with single-prefix argv', () => {
+    const { parseCliArgs } = requireCli();
+    const result = parseCliArgs(argvPacked('--monitor', '2'));
+    assert.strictEqual(result.monitor, 2);
+  });
+
+  test('--fullscreen is parsed correctly with single-prefix argv', () => {
+    const { parseCliArgs } = requireCli();
+    const result = parseCliArgs(argvPacked('--fullscreen'));
+    assert.strictEqual(result.fullscreen, true);
+  });
+
+  test('--monitor 2 --fullscreen both parsed with single-prefix argv', () => {
+    const { parseCliArgs } = requireCli();
+    const result = parseCliArgs(argvPacked('--monitor', '2', '--fullscreen'));
+    assert.strictEqual(result.monitor, 2);
+    assert.strictEqual(result.fullscreen, true);
+  });
+
+  test('--profile "Cam1" parsed correctly with single-prefix argv', () => {
+    const { parseCliArgs } = requireCli();
+    const result = parseCliArgs(argvPacked('--profile', 'Cam1'));
+    assert.strictEqual(result.profile, 'Cam1');
+  });
+
+  test('all three flags work with single-prefix argv', () => {
+    const { parseCliArgs } = requireCli();
+    const result = parseCliArgs(argvPacked('--monitor', '3', '--fullscreen', '--profile', 'Main'));
+    assert.strictEqual(result.monitor, 3);
+    assert.strictEqual(result.fullscreen, true);
+    assert.strictEqual(result.profile, 'Main');
+  });
+});

@@ -29,12 +29,19 @@
  * Electron passes additional flags (e.g. --inspect, --enable-logging) in argv —
  * unknown flags are silently ignored so no compatibility issues arise.
  *
+ * argv layout differs between dev and packaged:
+ *   Dev (npm start):  [electron, app.js, ...userArgs]   → user args start at index 2
+ *   Packaged (.exe):  [app.exe,  ...userArgs]            → user args start at index 1
+ *
+ * We handle both by scanning the full argv for any of our known flags rather
+ * than relying on a fixed slice offset.
+ *
  * @param {string[]} [argv]  Argument vector to parse. Defaults to process.argv.
  * @returns {CliArgs}
  */
 function parseCliArgs(argv) {
-  // Skip the first two entries: path to node/electron + path to script
-  const args = (argv ?? process.argv).slice(2);
+  // Use the full argv – we search for our flags by name, so the offset doesn't matter.
+  const args = argv ?? process.argv;
 
   /** @type {CliArgs} */
   const result = {

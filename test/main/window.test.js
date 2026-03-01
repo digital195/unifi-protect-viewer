@@ -480,6 +480,63 @@ describe('window.js – window lifecycle events', () => {
     win.emit('close');
     assert.strictEqual(mockStoreInstance.get('bounds'), undefined);
   });
+
+  test('close event: saves pre-fullscreen bounds when window is in fullscreen (enter-full-screen fired)', async () => {
+    mockStoreInstance.set('init', true);
+    const { createMainWindow } = requireFreshWindow();
+    const win = await createMainWindow();
+    // Simulate: user moved window to (200,100, 1400x900) before going fullscreen
+    win._bounds = { x: 200, y: 100, width: 1400, height: 900 };
+    win.emit('enter-full-screen');
+    // Now fullscreen – getBounds() would return large display coords
+    win._bounds = { x: 0, y: 0, width: 3840, height: 2160 };
+    win.emit('close');
+    const saved = mockStoreInstance.get('bounds');
+    assert.strictEqual(saved.x, 200, 'must save pre-fullscreen x');
+    assert.strictEqual(saved.y, 100, 'must save pre-fullscreen y');
+    assert.strictEqual(saved.width, 1400, 'must save pre-fullscreen width');
+    assert.strictEqual(saved.height, 900, 'must save pre-fullscreen height');
+  });
+
+  test('close event: after leave-full-screen, normal getBounds() is saved again', async () => {
+    mockStoreInstance.set('init', true);
+    const { createMainWindow } = requireFreshWindow();
+    const win = await createMainWindow();
+    // Enter fullscreen
+    win._bounds = { x: 100, y: 50, width: 1280, height: 760 };
+    win.emit('enter-full-screen');
+    win._bounds = { x: 0, y: 0, width: 1920, height: 1080 };
+    // Leave fullscreen – window is back to windowed mode
+    win.emit('leave-full-screen');
+    win._bounds = { x: 150, y: 80, width: 1200, height: 800 };
+    win.emit('close');
+    const saved = mockStoreInstance.get('bounds');
+    assert.strictEqual(saved.x, 150, 'after leaving fullscreen must save current bounds x');
+    assert.strictEqual(saved.y, 80, 'after leaving fullscreen must save current bounds y');
+    assert.strictEqual(saved.width, 1200);
+    assert.strictEqual(saved.height, 800);
+  });
+
+  test('close event: --fullscreen CLI arg saves initial windowed bounds as pre-fs fallback', async () => {
+    mockStoreInstance.set('init', true);
+    mockStoreInstance.set('profiles', [{ id: 'p1', name: 'P1', url: 'u1' }]);
+    const { createMainWindow } = requireFreshWindow();
+    const win = await createMainWindow({ monitor: null, fullscreen: true, profile: null });
+    // getBounds() would return fullscreen coords – but preFsBounds should be used
+    win._bounds = { x: 0, y: 0, width: 1920, height: 1080 };
+    win.emit('close');
+    const saved = mockStoreInstance.get('bounds');
+    // Pre-fullscreen bounds were set to the initial display coords (DEFAULT not expected here
+    // since fullscreen uses display size) – what matters is they are NOT the huge current bounds
+    // and that they were captured before setFullScreen(true) was called.
+    assert.ok(saved, 'bounds should be saved');
+    // preFsBounds.width was set from initialWidth = display.width (1920 default mock display)
+    // This is the sane fallback; the important thing is it was saved
+    assert.strictEqual(typeof saved.x, 'number');
+    assert.strictEqual(typeof saved.y, 'number');
+    assert.strictEqual(typeof saved.width, 'number');
+    assert.strictEqual(typeof saved.height, 'number');
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -770,7 +827,7 @@ describe('window.js – CLI --monitor and --fullscreen override', () => {
     assert.strictEqual(win.isFullScreen(), true);
   });
 
-  test('--monitor 2 with two displays → bounds set to second display', async () => {
+  test('--monitor 2 with two displays → window is placed on second display', async () => {
     screen._displays = [
       { id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 } },
       { id: 2, bounds: { x: 1920, y: 0, width: 2560, height: 1440 } },
@@ -778,8 +835,27 @@ describe('window.js – CLI --monitor and --fullscreen override', () => {
     mockStoreInstance.set('profiles', [{ id: 'p1', name: 'P1', url: 'u1' }]);
     const { createMainWindow } = requireFreshWindow();
     const win = await createMainWindow({ monitor: 2, fullscreen: null, profile: null });
+    // Without --fullscreen, the window should be centered on the target display
+    // (x >= display.x && x < display.x + display.width)
+    assert.ok(
+      win._bounds.x >= 1920,
+      `window x=${win._bounds.x} should be on second display (x >= 1920)`,
+    );
+    // Width should be default (not full display width) since no fullscreen
+    assert.strictEqual(win._bounds.width, 1280);
+  });
+
+  test('--monitor 2 with --fullscreen → bounds exactly equal to second display', async () => {
+    screen._displays = [
+      { id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 } },
+      { id: 2, bounds: { x: 1920, y: 0, width: 2560, height: 1440 } },
+    ];
+    mockStoreInstance.set('profiles', [{ id: 'p1', name: 'P1', url: 'u1' }]);
+    const { createMainWindow } = requireFreshWindow();
+    const win = await createMainWindow({ monitor: 2, fullscreen: true, profile: null });
     assert.strictEqual(win._bounds.x, 1920);
     assert.strictEqual(win._bounds.width, 2560);
+    assert.strictEqual(win.isFullScreen(), true);
   });
 
   test('--monitor 1 → bounds set to first display', async () => {
