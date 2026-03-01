@@ -3,14 +3,64 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Unifi Protect Viewer - Configuration</title>
+    <title>Unifi Protect Viewer – Configuration</title>
     <link rel="stylesheet" href="shared.css" />
     <style>
+      /* ── Content tab bar ─────────────────────────────────────────────────── */
+      .upv-content-tabs {
+        display: flex;
+        gap: 2px;
+        margin-bottom: 20px;
+        border-bottom: 1px solid var(--border);
+      }
+      .upv-content-tab {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 8px 16px 10px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-muted);
+        background: transparent;
+        border: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        cursor: pointer;
+        transition:
+          color 0.18s,
+          border-color 0.18s;
+        outline: none;
+      }
+      .upv-content-tab:hover {
+        color: var(--text-secondary);
+      }
+      .upv-content-tab--active {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+      }
+
+      /* ── Tab panels ──────────────────────────────────────────────────────── */
+      .upv-tab-panel {
+        display: none;
+      }
+      .upv-tab-panel--active {
+        display: block;
+      }
+
+      /* ── Two-column grid inside content area ─────────────────────────────── */
+      .upv-content-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        align-items: start;
+      }
+
+      /* ── Profile list ────────────────────────────────────────────────────── */
       .upv-profile-list {
         display: flex;
         flex-direction: column;
         gap: 5px;
-        max-height: 200px;
+        max-height: 180px;
         overflow-y: auto;
         margin-bottom: 6px;
       }
@@ -19,7 +69,7 @@
         align-items: center;
         gap: 6px;
         padding: 6px 9px;
-        background: var(--bg-card);
+        background: var(--bg-input);
         border: 1px solid var(--border);
         border-radius: var(--radius-sm);
         cursor: pointer;
@@ -77,6 +127,8 @@
         border-color: var(--accent);
         color: var(--accent);
       }
+
+      /* ── Edit mode tabs ──────────────────────────────────────────────────── */
       .upv-mode-tabs {
         display: flex;
         gap: 4px;
@@ -108,6 +160,8 @@
       .upv-mode-tab:hover:not(.upv-mode-tab--active) {
         color: var(--text-secondary);
       }
+
+      /* ── Form fields ─────────────────────────────────────────────────────── */
       .upv-field {
         display: flex;
         flex-direction: column;
@@ -209,7 +263,7 @@
         border-radius: var(--radius-sm);
         color: var(--text-primary);
         font-size: 12px;
-        padding: 7px 10px 7px 32px;
+        padding: 7px 30px 7px 32px;
         outline: none;
         appearance: none;
         -webkit-appearance: none;
@@ -237,6 +291,8 @@
         align-items: center;
         pointer-events: none;
       }
+
+      /* ── Messages ────────────────────────────────────────────────────────── */
       .upv-msg {
         display: none;
         align-items: flex-start;
@@ -284,62 +340,209 @@
       #cancelBtn {
         display: none;
       }
-      .upv-version-info {
+
+      /* ── iOS-style toggle ────────────────────────────────────────────────── */
+      .upv-toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 9px 11px;
+        background: var(--bg-input);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: border-color 0.15s;
+        gap: 12px;
+        user-select: none;
+      }
+      .upv-toggle-row:hover {
+        border-color: var(--border-hover);
+      }
+      .upv-toggle-row__label {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .upv-toggle-row__title {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+      .upv-toggle-row__desc {
+        font-size: 11px;
+        color: var(--text-muted);
+        line-height: 1.4;
+      }
+      .upv-toggle {
+        position: relative;
+        width: 36px;
+        height: 20px;
+        flex-shrink: 0;
+      }
+      .upv-toggle input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+        position: absolute;
+      }
+      .upv-toggle__track {
+        position: absolute;
+        inset: 0;
+        background: var(--border);
+        border-radius: 20px;
+        transition: background 0.2s;
+        cursor: pointer;
+      }
+      .upv-toggle__track::after {
+        content: '';
+        position: absolute;
+        width: 14px;
+        height: 14px;
+        left: 3px;
+        top: 3px;
+        background: #fff;
+        border-radius: 50%;
+        transition: transform 0.2s;
+      }
+      .upv-toggle input:checked + .upv-toggle__track {
+        background: var(--accent);
+      }
+      .upv-toggle input:checked + .upv-toggle__track::after {
+        transform: translateX(16px);
+      }
+
+      /* ── Display hint ────────────────────────────────────────────────────── */
+      .upv-display-info {
         display: flex;
         align-items: flex-start;
         gap: 7px;
-        padding: 7px 10px;
-        margin-bottom: 8px;
-        background: rgba(0, 111, 255, 0.05);
-        border: 1px solid rgba(0, 111, 255, 0.15);
-        border-radius: var(--radius-sm);
-        color: var(--text-muted);
-        font-size: 11px;
-        line-height: 1.55;
-      }
-      .upv-version-info svg {
-        color: var(--accent);
-        opacity: 0.7;
-      }
-      .upv-version-info em {
-        color: var(--text-secondary);
-        font-style: normal;
-        font-weight: 500;
-      }
-      .upv-sidebar-note {
-        font-size: 10px;
-        color: var(--text-muted);
-        line-height: 1.6;
-        margin-top: auto;
-        padding-top: 6px;
-      }
-      .upv-startup-row {
-        display: flex;
-        align-items: center;
-        gap: 7px;
-        padding: 6px 9px;
+        padding: 6px 10px;
         background: var(--warn-bg);
         border: 1px solid var(--warn-border);
         border-radius: var(--radius-sm);
-        margin-bottom: 8px;
-      }
-      .upv-startup-row input[type='checkbox'] {
-        accent-color: var(--accent);
-        width: 13px;
-        height: 13px;
-        flex-shrink: 0;
-        cursor: pointer;
-      }
-      .upv-startup-row label {
-        font-size: 10px;
+        font-size: 11px;
         color: var(--warn-text);
         line-height: 1.5;
-        cursor: pointer;
+        margin-top: 6px;
+      }
+      .upv-display-info svg {
+        flex-shrink: 0;
+        margin-top: 1px;
+        color: var(--warn-text);
+      }
+
+      /* ── Info card title with icon ───────────────────────────────────────── */
+      /* Allow the shared title to carry an optional leading icon */
+      .upv-info-card__title {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .upv-info-card__title svg {
+        color: var(--accent);
+        opacity: 0.7;
+        flex-shrink: 0;
+      }
+
+      /* ── Version grid inside info card ───────────────────────────────────── */
+      .upv-info-card__version-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        margin: 8px 0 6px;
+      }
+      .upv-info-card__version-row {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-wrap: wrap;
+      }
+      .upv-info-card__version-row--legacy .upv-badge {
+        opacity: 0.6;
+      }
+      .upv-info-card__version-label {
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--text-muted);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        margin-left: 3px;
+      }
+
+      /* ── Muted badge variant ─────────────────────────────────────────────── */
+      .upv-badge--muted {
+        background: var(--bg-input);
+        color: var(--text-muted);
+        border-color: var(--border);
+      }
+
+      /* ── Tip list ─────────────────────────────────────────────────────────── */
+      .upv-tip-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .upv-tip-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        font-size: 11px;
+        color: var(--text-secondary);
+        line-height: 1.5;
+      }
+      .upv-tip-row kbd {
+        background: var(--bg-input);
+        border: 1px solid var(--border);
+        border-bottom-width: 2px;
+        border-radius: 4px;
+        padding: 1px 6px;
+        font-size: 10px;
+        font-family: 'Consolas', 'Courier New', monospace;
+        color: var(--accent);
+        font-weight: 700;
+        flex-shrink: 0;
+        margin-top: 1px;
+      }
+      .upv-tip-row svg {
+        color: var(--text-muted);
+        flex-shrink: 0;
+        margin-top: 2px;
+      }
+
+      /* ── Main area overrides ─────────────────────────────────────────────── */
+      .upv-main {
+        padding: 26px 28px;
+        align-items: flex-start;
+        justify-content: flex-start;
+      }
+      .upv-main-inner {
+        width: 100%;
+        max-width: 900px;
+      }
+      .upv-main-header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 22px;
+      }
+      .upv-main-header__title {
+        font-size: 20px;
+        font-weight: 700;
+        line-height: 1.2;
+        margin-bottom: 2px;
+      }
+      .upv-main-header__sub {
+        font-size: 12px;
+        color: var(--text-secondary);
       }
     </style>
   </head>
   <body>
     <div class="upv-layout">
+      <!-- ════════════════════════════════════════════════════════════════════ -->
+      <!-- SIDEBAR                                                              -->
+      <!-- ════════════════════════════════════════════════════════════════════ -->
       <aside class="upv-sidebar">
         <div class="upv-brand">
           <img class="upv-brand__logo" src="../img/128.png" alt="Logo" />
@@ -348,12 +551,17 @@
             <div class="upv-brand__sub">Configuration</div>
           </div>
         </div>
-        <p class="upv-section-title">Profiles</p>
-        <div class="upv-profile-list" id="profileList"></div>
-        <button class="upv-add-profile-btn" onclick="addProfile()">
+
+        <!-- Navigation back to profile selection (only shown when >1 profiles exist) -->
+        <button
+          class="upv-nav-link"
+          id="navToProfiles"
+          style="display: none"
+          onclick="goToProfiles()"
+        >
           <svg
-            width="12"
-            height="12"
+            width="13"
+            height="13"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -361,381 +569,866 @@
             stroke-linecap="round"
             stroke-linejoin="round"
           >
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
+            <polyline points="15 18 9 12 15 6" />
           </svg>
-          Add Profile
+          Profile Selection
         </button>
-        <div class="upv-divider"></div>
-        <p class="upv-section-title">Edit Mode</p>
-        <div class="upv-mode-tabs">
-          <button class="upv-mode-tab upv-mode-tab--active" id="tabUrl" onclick="setMode('url')">
-            URL only
-          </button>
-          <button class="upv-mode-tab" id="tabFull" onclick="setMode('full')">Full edit</button>
-        </div>
-        <div class="upv-alert upv-alert--warn" id="urlOnlyHint">
-          <svg
-            width="13"
-            height="13"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-          <p>Only the liveview URL will be updated. Credentials stay unchanged.</p>
-        </div>
-        <p class="upv-section-title">Connection</p>
-        <div class="upv-field">
-          <label class="upv-field__label" for="profileName">Profile Name</label>
-          <div class="upv-input-wrap">
-            <span class="upv-input-wrap__icon">
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
-              </svg>
-            </span>
-            <input class="upv-input" id="profileName" type="text" placeholder="My NVR" />
-          </div>
-        </div>
-        <div class="upv-field">
-          <label class="upv-field__label" for="url">Liveview URL</label>
-          <div class="upv-input-wrap">
-            <span class="upv-input-wrap__icon">
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <line x1="2" y1="12" x2="22" y2="12" />
-                <path
-                  d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
-                />
-              </svg>
-            </span>
-            <input
-              class="upv-input"
-              id="url"
-              type="url"
-              placeholder="https://192.168.1.1/protect/dashboard/..."
-            />
-          </div>
-        </div>
-        <div id="credentialFields">
-          <div class="upv-field">
-            <label class="upv-field__label" for="username">
-              Username
-              <span class="upv-field__badge upv-field__badge--unchanged" id="usernameBadge"
-                >unchanged</span
-              >
-            </label>
-            <div class="upv-input-wrap">
-              <span class="upv-input-wrap__icon">
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
-              </span>
-              <input
-                class="upv-input"
-                id="username"
-                type="text"
-                placeholder="admin"
-                autocomplete="username"
-              />
-            </div>
-          </div>
-          <div class="upv-field">
-            <label class="upv-field__label" for="password">
-              Password
-              <span class="upv-field__badge upv-field__badge--unchanged" id="passwordBadge"
-                >unchanged</span
-              >
-            </label>
-            <div class="upv-input-wrap">
-              <span class="upv-input-wrap__icon">
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
-              </span>
-              <input
-                class="upv-input"
-                id="password"
-                type="password"
-                placeholder="unchanged"
-                autocomplete="current-password"
-              />
-              <button
-                class="upv-pw-toggle"
-                id="togglePassword"
-                type="button"
-                title="Toggle visibility"
-              >
-                <svg
-                  id="eyeIcon"
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-        <div class="upv-field">
-          <label class="upv-field__label" for="protectVersion">
-            Protect Version
-            <span class="upv-field__badge">optional</span>
-          </label>
-          <div class="upv-input-wrap">
-            <span class="upv-input-wrap__icon">
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <polyline points="16 18 22 12 16 6" />
-                <polyline points="8 6 2 12 8 18" />
-              </svg>
-            </span>
-            <select class="upv-select" id="protectVersion">
-              <option value="">Auto (detect from DOM)</option>
-              <optgroup label="── Legacy ──────────────">
-                <option value="3.x">3.x (Legacy)</option>
-              </optgroup>
-              <optgroup label="── Modern (4.x+) ───────">
-                <option value="4.x">4.x</option>
-                <option value="5.x">5.x</option>
-                <option value="6.x">6.x</option>
-                <option value="7.x">7.x</option>
-              </optgroup>
-            </select>
-            <span class="upv-input-wrap__select-arrow">
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </span>
-          </div>
-        </div>
-        <div id="protectVersionInfo" class="upv-version-info">
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            style="flex-shrink: 0; margin-top: 1px"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-          <p>
-            The app automatically detects your Protect version by reading the version label in the
-            sidebar (e.g. <em>"Protect 7.1.0"</em>). If detection fails, the fallback selected above
-            is used. <strong>Legacy</strong> (3.x) uses a different UI handler.
-            <strong>Modern</strong> (4.x and above, including 7.x+) all share the same UI structure
-            and are handled identically – future versions are supported automatically.
+
+        <!-- Spacer pushes bottom section down -->
+        <div class="upv-sidebar-spacer"></div>
+
+        <!-- ── Bottom block: About / Keyboard Shortcuts / Debug & Support ── -->
+        <div class="upv-sidebar-bottom">
+          <div class="upv-divider"></div>
+
+          <p class="upv-section-title">About</p>
+          <p class="upv-about-text">
+            <strong class="upv-text-secondary">Unifi Protect Viewer</strong> is an open-source
+            desktop wrapper for Unifi Protect.
           </p>
+          <p class="upv-about-text">
+            Click a profile to connect. Use
+            <kbd class="upv-kbd">F10</kbd> during liveview to cycle between profiles.
+          </p>
+
+          <div class="upv-divider"></div>
+
+          <p class="upv-section-title">Keyboard Shortcuts</p>
+          <div class="upv-hotkeys">
+            <div class="upv-hotkey-row"><kbd>F9</kbd><span>Restart</span></div>
+            <div class="upv-hotkey-row"><kbd>F10</kbd><span>Switch Profile</span></div>
+            <div class="upv-hotkey-row"><kbd>F11</kbd><span>Toggle Fullscreen</span></div>
+          </div>
+
+          <div class="upv-divider"></div>
+          <div id="debugBlockContainer"></div>
         </div>
-        <div class="upv-startup-row" id="startupRow" style="display: none">
-          <input type="checkbox" id="startupCheck" />
-          <label for="startupCheck">Always start with this profile</label>
-        </div>
-        <div id="msg" class="upv-msg upv-msg--error">
-          <svg
-            width="13"
-            height="13"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-          <span id="msgText"></span>
-        </div>
-        <div class="upv-btn-group">
-          <button class="upv-btn upv-btn--primary" id="saveBtn" onclick="save()">
-            <span id="btnSpinner" class="upv-spinner"></span>
-            <svg
-              id="btnIcon"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-              <polyline points="17 21 17 13 7 13 7 21" />
-              <polyline points="7 3 7 8 15 8" />
-            </svg>
-            Save &amp; Connect
-          </button>
-          <button class="upv-btn upv-btn--secondary" id="cancelBtn" onclick="cancel()">
-            <svg
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-            Cancel
-          </button>
-        </div>
-        <div class="upv-divider"></div>
-        <p class="upv-section-title">Keyboard Shortcuts</p>
-        <div class="upv-hotkeys">
-          <div class="upv-hotkey-row"><kbd>F9</kbd><span>Restart</span></div>
-          <div class="upv-hotkey-row"><kbd>F10</kbd><span>Switch Profile</span></div>
-          <div class="upv-hotkey-row"><kbd>F11</kbd><span>Toggle Fullscreen</span></div>
-        </div>
-        <div class="upv-divider"></div>
-        <p class="upv-sidebar-note">
-          Self-signed certificates are accepted automatically. Make sure your Unifi Protect instance
-          is reachable from this device.
-        </p>
       </aside>
+
+      <!-- ════════════════════════════════════════════════════════════════════ -->
+      <!-- MAIN CONTENT                                                         -->
+      <!-- ════════════════════════════════════════════════════════════════════ -->
       <main class="upv-main">
-        <div class="upv-card">
-          <div class="upv-card__header">
-            <div class="upv-card__icon">
-              <img
-                src="../img/128.png"
-                alt="Logo"
-                style="width: 34px; height: 34px; border-radius: 9px; display: block"
-              />
-            </div>
+        <div class="upv-main-inner">
+          <!-- Page header -->
+          <div class="upv-main-header">
+            <img
+              src="../img/128.png"
+              alt="Logo"
+              style="width: 38px; height: 38px; border-radius: 10px; display: block; flex-shrink: 0"
+            />
             <div>
-              <h2 class="upv-card__title">Unifi Protect Viewer</h2>
-              <p class="upv-card__subtitle">Multi-profile configuration</p>
+              <div class="upv-main-header__title">Configuration</div>
+              <div class="upv-main-header__sub">Manage profiles and application settings</div>
             </div>
           </div>
-          <p class="upv-card__body">
-            Manage multiple NVR profiles or dashboards. Each profile stores a separate URL and
-            credentials. Use <strong style="color: var(--text-primary)">F10</strong> during liveview
-            to cycle through profiles, or right-click the tray icon to switch directly.
-          </p>
-          <div class="upv-info-section">
-            <h4 class="upv-info-section__heading">Supported Versions</h4>
-            <div>
-              <span class="upv-badge">Protect 2.x</span>
-              <span class="upv-badge">Protect 3.x</span>
-              <span class="upv-badge">Protect 4.x</span>
-              <span class="upv-badge">Protect 5.x+</span>
+
+          <!-- Tab bar -->
+          <div class="upv-content-tabs">
+            <button
+              class="upv-content-tab upv-content-tab--active"
+              id="tabConnection"
+              onclick="showTab('connection')"
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+                <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+                <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+                <line x1="12" y1="20" x2="12.01" y2="20" />
+              </svg>
+              Connection
+            </button>
+            <button class="upv-content-tab" id="tabStartup" onclick="showTab('startup')">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+              Startup
+            </button>
+          </div>
+
+          <!-- ─────────────────────────────────────────────────────────────── -->
+          <!-- TAB: Connection                                                  -->
+          <!-- ─────────────────────────────────────────────────────────────── -->
+          <div class="upv-tab-panel upv-tab-panel--active" id="panelConnection">
+            <div class="upv-content-grid">
+              <!-- LEFT: Editor -->
+              <div>
+                <!-- Profiles -->
+                <div class="upv-cfg-card">
+                  <div class="upv-cfg-card__title">
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                    Profiles
+                  </div>
+                  <div class="upv-profile-list" id="profileList"></div>
+                  <button class="upv-add-profile-btn" onclick="addProfile()">
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    Add Profile
+                  </button>
+                </div>
+
+                <!-- Edit mode -->
+                <div class="upv-cfg-card">
+                  <div class="upv-cfg-card__title">
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                    Edit Mode
+                  </div>
+                  <div class="upv-mode-tabs">
+                    <button
+                      class="upv-mode-tab upv-mode-tab--active"
+                      id="tabUrl"
+                      onclick="setMode('url')"
+                    >
+                      URL only
+                    </button>
+                    <button class="upv-mode-tab" id="tabFull" onclick="setMode('full')">
+                      Full edit
+                    </button>
+                  </div>
+                  <div class="upv-alert upv-alert--warn" id="urlOnlyHint">
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    <p>Only the liveview URL will be updated. Credentials stay unchanged.</p>
+                  </div>
+                </div>
+
+                <!-- Connection fields -->
+                <div class="upv-cfg-card">
+                  <div class="upv-cfg-card__title">
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="2" y1="12" x2="22" y2="12" />
+                      <path
+                        d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
+                      />
+                    </svg>
+                    Connection
+                  </div>
+
+                  <div class="upv-field">
+                    <label class="upv-field__label" for="profileName">Profile Name</label>
+                    <div class="upv-input-wrap">
+                      <span class="upv-input-wrap__icon">
+                        <svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                          <circle cx="12" cy="7" r="4" />
+                        </svg>
+                      </span>
+                      <input class="upv-input" id="profileName" type="text" placeholder="My NVR" />
+                    </div>
+                  </div>
+
+                  <div class="upv-field">
+                    <label class="upv-field__label" for="url">Liveview URL</label>
+                    <div class="upv-input-wrap">
+                      <span class="upv-input-wrap__icon">
+                        <svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="2" y1="12" x2="22" y2="12" />
+                          <path
+                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
+                          />
+                        </svg>
+                      </span>
+                      <input
+                        class="upv-input"
+                        id="url"
+                        type="url"
+                        placeholder="https://192.168.1.1/protect/dashboard/..."
+                      />
+                    </div>
+                  </div>
+
+                  <div id="credentialFields">
+                    <div class="upv-field">
+                      <label class="upv-field__label" for="username">
+                        Username
+                        <span
+                          class="upv-field__badge upv-field__badge--unchanged"
+                          id="usernameBadge"
+                          >unchanged</span
+                        >
+                      </label>
+                      <div class="upv-input-wrap">
+                        <span class="upv-input-wrap__icon">
+                          <svg
+                            width="13"
+                            height="13"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                            <circle cx="12" cy="7" r="4" />
+                          </svg>
+                        </span>
+                        <input
+                          class="upv-input"
+                          id="username"
+                          type="text"
+                          placeholder="admin"
+                          autocomplete="username"
+                        />
+                      </div>
+                    </div>
+                    <div class="upv-field">
+                      <label class="upv-field__label" for="password">
+                        Password
+                        <span
+                          class="upv-field__badge upv-field__badge--unchanged"
+                          id="passwordBadge"
+                          >unchanged</span
+                        >
+                      </label>
+                      <div class="upv-input-wrap">
+                        <span class="upv-input-wrap__icon">
+                          <svg
+                            width="13"
+                            height="13"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                          </svg>
+                        </span>
+                        <input
+                          class="upv-input"
+                          id="password"
+                          type="password"
+                          placeholder="unchanged"
+                          autocomplete="current-password"
+                        />
+                        <button
+                          class="upv-pw-toggle"
+                          id="togglePassword"
+                          type="button"
+                          title="Toggle visibility"
+                        >
+                          <svg
+                            id="eyeIcon"
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Protect version -->
+                  <div class="upv-field">
+                    <label class="upv-field__label" for="protectVersion">
+                      Protect Version
+                      <span class="upv-field__badge">optional</span>
+                    </label>
+                    <div class="upv-input-wrap">
+                      <span class="upv-input-wrap__icon">
+                        <svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <polyline points="16 18 22 12 16 6" />
+                          <polyline points="8 6 2 12 8 18" />
+                        </svg>
+                      </span>
+                      <select class="upv-select" id="protectVersion">
+                        <option value="">Auto (detect from DOM)</option>
+                        <optgroup label="── Legacy ───────────────">
+                          <option value="3.x">3.x (Legacy)</option>
+                        </optgroup>
+                        <optgroup label="── Modern (4.x – 7.x+) ──">
+                          <option value="4.x">4.x</option>
+                          <option value="5.x">5.x</option>
+                          <option value="6.x">6.x</option>
+                          <option value="7.x">7.x</option>
+                        </optgroup>
+                      </select>
+                      <span class="upv-input-wrap__select-arrow">
+                        <svg
+                          width="11"
+                          height="11"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                      </span>
+                    </div>
+                    <p class="upv-field__hint">
+                      Auto-detected from the sidebar footer (e.g. "Protect 7.1.0"). Set a manual
+                      override only if auto-detection fails.
+                    </p>
+                  </div>
+
+                  <div id="msg" class="upv-msg upv-msg--error">
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    <span id="msgText"></span>
+                  </div>
+
+                  <div class="upv-btn-group">
+                    <button class="upv-btn upv-btn--primary" id="saveBtn" onclick="save()">
+                      <span id="btnSpinner" class="upv-spinner"></span>
+                      <svg
+                        id="btnIcon"
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                        <polyline points="17 21 17 13 7 13 7 21" />
+                        <polyline points="7 3 7 8 15 8" />
+                      </svg>
+                      Save
+                    </button>
+                    <button class="upv-btn upv-btn--secondary" id="cancelBtn" onclick="cancel()">
+                      <svg
+                        width="13"
+                        height="13"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+                <!-- /connection card -->
+              </div>
+              <!-- /left -->
+
+              <!-- RIGHT: Context panel -->
+              <div>
+                <!-- ── Liveview URL reference ──────────────────────────────── -->
+                <div class="upv-info-card">
+                  <h4 class="upv-info-card__title">
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="2" y1="12" x2="22" y2="12" />
+                      <path
+                        d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
+                      />
+                    </svg>
+                    Liveview URL
+                  </h4>
+                  <p>
+                    Open Unifi Protect in your browser, navigate to a liveview and copy the URL.
+                  </p>
+                  <div class="upv-code-block">
+                    …/protect/dashboard/<em style="opacity: 0.6">&#x3C;id&#x3E;</em>
+                  </div>
+                  <p class="upv-info-card__note">
+                    Protect 2.x uses
+                    <code class="upv-code-inline">/protect/liveview/…</code> instead.
+                  </p>
+                </div>
+
+                <!-- ── Protect version reference ───────────────────────────── -->
+                <div class="upv-info-card">
+                  <h4 class="upv-info-card__title">
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <polyline points="16 18 22 12 16 6" />
+                      <polyline points="8 6 2 12 8 18" />
+                    </svg>
+                    Protect Version
+                  </h4>
+                  <p>
+                    Version is <strong class="upv-text-primary">auto-detected</strong> from the
+                    sidebar footer at runtime. Use the override only when detection fails.
+                  </p>
+                  <div class="upv-info-card__version-grid">
+                    <div class="upv-info-card__version-row upv-info-card__version-row--legacy">
+                      <span class="upv-badge upv-badge--muted">2.x</span>
+                      <span class="upv-badge upv-badge--muted">3.x</span>
+                      <span class="upv-info-card__version-label">Legacy</span>
+                    </div>
+                    <div class="upv-info-card__version-row">
+                      <span class="upv-badge">4.x</span>
+                      <span class="upv-badge">5.x</span>
+                      <span class="upv-badge">6.x</span>
+                      <span class="upv-badge">7.x+</span>
+                      <span class="upv-info-card__version-label upv-text-primary">Modern</span>
+                    </div>
+                  </div>
+                  <p class="upv-info-card__note">
+                    All Modern versions share one handler. Future releases are supported
+                    automatically.
+                  </p>
+                </div>
+
+                <!-- ── Tips ────────────────────────────────────────────────── -->
+                <div class="upv-info-card">
+                  <h4 class="upv-info-card__title">
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <polygon points="5 3 19 12 5 21 5 3" />
+                    </svg>
+                    Tips
+                  </h4>
+                  <div class="upv-tip-list">
+                    <div class="upv-tip-row">
+                      <kbd>F10</kbd>
+                      <span>Cycle profiles during liveview or via system tray</span>
+                    </div>
+                    <div class="upv-tip-row">
+                      <kbd>F11</kbd>
+                      <span>Toggle fullscreen at any time</span>
+                    </div>
+                    <div class="upv-tip-row">
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <polygon points="5 3 19 12 5 21 5 3" />
+                      </svg>
+                      <span
+                        >Set a startup profile under the
+                        <strong class="upv-text-primary">Startup</strong> tab to skip the selection
+                        screen</span
+                      >
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <!-- /right -->
             </div>
+            <!-- /grid -->
           </div>
-          <div class="upv-info-section">
-            <h4 class="upv-info-section__heading">How to get your Liveview URL</h4>
-            <p class="upv-info-section__text">
-              Open Unifi Protect in your browser, navigate to your liveview and copy the URL from
-              the address bar.
-            </p>
-            <div class="upv-code-block">
-              https://192.168.1.1/protect/dashboard/635e65bd000c1c0387005a5f
+          <!-- /panel connection -->
+
+          <!-- ─────────────────────────────────────────────────────────────── -->
+          <!-- TAB: Startup                                                     -->
+          <!-- ─────────────────────────────────────────────────────────────── -->
+          <div class="upv-tab-panel" id="panelStartup">
+            <div class="upv-content-grid">
+              <!-- LEFT: Startup settings -->
+              <div>
+                <!-- Startup profile -->
+                <div class="upv-cfg-card">
+                  <div class="upv-cfg-card__title">
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                    Startup Profile
+                  </div>
+                  <div class="upv-field">
+                    <label class="upv-field__label" for="startupProfile">Profile on Launch</label>
+                    <div class="upv-input-wrap">
+                      <span class="upv-input-wrap__icon">
+                        <svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <polygon points="5 3 19 12 5 21 5 3" />
+                        </svg>
+                      </span>
+                      <select class="upv-select" id="startupProfile">
+                        <option value="">None – show profile selection screen</option>
+                      </select>
+                      <span class="upv-input-wrap__select-arrow">
+                        <svg
+                          width="11"
+                          height="11"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                      </span>
+                    </div>
+                    <p class="upv-field__hint">
+                      When set, this profile launches automatically — the selection screen is
+                      skipped. Switch profiles anytime with <strong>F10</strong>.
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Display & Fullscreen -->
+                <div class="upv-cfg-card">
+                  <div class="upv-cfg-card__title">
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                      <line x1="8" y1="21" x2="16" y2="21" />
+                      <line x1="12" y1="17" x2="12" y2="21" />
+                    </svg>
+                    Display &amp; Fullscreen
+                  </div>
+
+                  <label class="upv-toggle-row" for="startupFullscreen">
+                    <div class="upv-toggle-row__label">
+                      <span class="upv-toggle-row__title">Start in Fullscreen</span>
+                      <span class="upv-toggle-row__desc"
+                        >Automatically enters fullscreen mode on launch</span
+                      >
+                    </div>
+                    <span class="upv-toggle">
+                      <input type="checkbox" id="startupFullscreen" />
+                      <span class="upv-toggle__track"></span>
+                    </span>
+                  </label>
+
+                  <div id="displayRow" style="display: none">
+                    <div class="upv-field" style="margin-bottom: 6px">
+                      <label class="upv-field__label" for="startupDisplay">Target Display</label>
+                      <div class="upv-input-wrap">
+                        <span class="upv-input-wrap__icon">
+                          <svg
+                            width="13"
+                            height="13"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                            <line x1="8" y1="21" x2="16" y2="21" />
+                            <line x1="12" y1="17" x2="12" y2="21" />
+                          </svg>
+                        </span>
+                        <select class="upv-select" id="startupDisplay">
+                          <option value="0">Loading…</option>
+                        </select>
+                        <span class="upv-input-wrap__select-arrow">
+                          <svg
+                            width="11"
+                            height="11"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </span>
+                      </div>
+                    </div>
+                    <div class="upv-display-info">
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                      <span
+                        >The list reflects currently connected monitors. Connect all desired
+                        displays before selecting.</span
+                      >
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Save -->
+                <div id="startupMsg" class="upv-msg upv-msg--success" style="margin-bottom: 8px">
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  <span id="startupMsgText"></span>
+                </div>
+                <button
+                  class="upv-btn upv-btn--primary"
+                  id="saveStartupBtn"
+                  onclick="saveStartup()"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                    <polyline points="17 21 17 13 7 13 7 21" />
+                    <polyline points="7 3 7 8 15 8" />
+                  </svg>
+                  Save Startup Settings
+                </button>
+              </div>
+              <!-- /left -->
+
+              <!-- RIGHT: Info -->
+              <div>
+                <div class="upv-info-card">
+                  <h4 class="upv-info-card__title">Startup Behaviour</h4>
+                  <p>
+                    These settings are <strong class="upv-text-primary">global</strong> and apply on
+                    every launch, independent of the active profile.
+                  </p>
+                  <p>
+                    <strong class="upv-text-primary">Startup Profile:</strong> Choose which NVR
+                    profile to open automatically. When set to "None", the profile selection screen
+                    is shown so you can pick manually.
+                  </p>
+                  <p>
+                    <strong class="upv-text-primary">Fullscreen:</strong> Moves the window to the
+                    selected monitor and enters fullscreen mode immediately on launch. Default is
+                    off.
+                  </p>
+                </div>
+                <div class="upv-info-card">
+                  <h4 class="upv-info-card__title">Multi-Monitor Tips</h4>
+                  <p>
+                    Make sure all monitors are connected <em>before</em> launching the app. You can
+                    also toggle fullscreen manually at any time with
+                    <strong class="upv-text-primary">F11</strong>.
+                  </p>
+                  <p>
+                    Display numbering follows the order reported by your operating system. The
+                    <em>Primary</em> display is your main desktop monitor.
+                  </p>
+                </div>
+              </div>
+              <!-- /right -->
             </div>
-            <p style="margin-top: 6px; font-size: 12px; color: var(--text-muted)">
-              For Protect 2.x use <code class="upv-code-inline">/protect/liveview/...</code>
-            </p>
+            <!-- /grid -->
           </div>
-          <div class="upv-info-section">
-            <h4 class="upv-info-section__heading">Profile Switching</h4>
-            <p class="upv-info-section__text">
-              Add multiple profiles for different NVRs or dashboards. Press
-              <strong style="color: var(--text-primary)">F10</strong> in liveview to cycle through
-              them, or pick one from the system tray menu.
-            </p>
-          </div>
-          <div class="upv-info-section" id="debugBlockContainer"></div>
+          <!-- /panel startup -->
         </div>
+        <!-- /main-inner -->
       </main>
     </div>
+    <!-- /layout -->
+
     <script src="debug-block.js"></script>
     <script>
+      // ── State ────────────────────────────────────────────────────────────────
       let currentMode = 'url';
       let profiles = [];
       let activeProfileId = null;
-      let startupProfileId = null;
       let originalUsername = '';
       let passwordChanged = false;
       let usernameChanged = false;
+
+      // ── Utilities ────────────────────────────────────────────────────────────
       function escHtml(s) {
         return (s || '')
           .replace(/&/g, '&amp;')
@@ -747,6 +1440,20 @@
         if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
         return Date.now().toString(36) + Math.random().toString(36).substr(2);
       }
+
+      // ── Tab navigation ───────────────────────────────────────────────────────
+      function showTab(tab) {
+        ['connection', 'startup'].forEach((t) => {
+          document
+            .getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1))
+            .classList.toggle('upv-content-tab--active', t === tab);
+          document
+            .getElementById('panel' + t.charAt(0).toUpperCase() + t.slice(1))
+            .classList.toggle('upv-tab-panel--active', t === tab);
+        });
+      }
+
+      // ── Edit mode ─────────────────────────────────────────────────────────────
       function setMode(mode) {
         currentMode = mode;
         document.getElementById('tabUrl').classList.toggle('upv-mode-tab--active', mode === 'url');
@@ -758,6 +1465,8 @@
         document.getElementById('urlOnlyHint').style.display = mode === 'url' ? 'flex' : 'none';
         hideMsg();
       }
+
+      // ── Password toggle ───────────────────────────────────────────────────────
       document.getElementById('togglePassword').addEventListener('click', function () {
         const pw = document.getElementById('password');
         const icon = document.getElementById('eyeIcon');
@@ -767,6 +1476,8 @@
           ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
           : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
       });
+
+      // ── Credential tracking ───────────────────────────────────────────────────
       document.getElementById('username').addEventListener('input', function () {
         usernameChanged = this.value !== originalUsername;
         this.classList.toggle('upv-input--changed', usernameChanged);
@@ -781,6 +1492,8 @@
         b.textContent = passwordChanged ? 'changed' : 'unchanged';
         b.className = 'upv-field__badge' + (passwordChanged ? '' : ' upv-field__badge--unchanged');
       });
+
+      // ── Profile list ──────────────────────────────────────────────────────────
       function renderProfileList() {
         const list = document.getElementById('profileList');
         list.innerHTML = '';
@@ -808,12 +1521,13 @@
           list.appendChild(el);
         });
       }
+
       function selectProfile(id) {
         activeProfileId = id;
         renderProfileList();
         loadProfileIntoForm(id);
-        updateStartupUI();
       }
+
       function loadProfileIntoForm(id) {
         const p = profiles.find((pr) => pr.id === id);
         passwordChanged = false;
@@ -850,10 +1564,7 @@
         document.getElementById('cancelBtn').style.display = profiles.length > 0 ? 'flex' : 'none';
         hideMsg();
       }
-      function updateStartupUI() {
-        document.getElementById('startupRow').style.display = profiles.length > 1 ? 'flex' : 'none';
-        document.getElementById('startupCheck').checked = startupProfileId === activeProfileId;
-      }
+
       function addProfile() {
         const newP = {
           id: generateId(),
@@ -866,73 +1577,25 @@
         activeProfileId = newP.id;
         renderProfileList();
         loadProfileIntoForm(newP.id);
-        updateStartupUI();
+        refreshStartupProfileDropdown();
         document.getElementById('profileName').focus();
       }
+
       function deleteProfile(id) {
         if (profiles.length <= 1) {
           showMsg('Cannot delete the last profile.');
           return;
         }
         profiles = profiles.filter((p) => p.id !== id);
-        if (startupProfileId === id) {
-          startupProfileId = null;
-          window.electronAPI.startupProfileSet(null);
-        }
         if (activeProfileId === id) activeProfileId = profiles[0].id;
         window.electronAPI.profilesSave(profiles);
         window.electronAPI.activeProfileSet(activeProfileId);
         renderProfileList();
         loadProfileIntoForm(activeProfileId);
-        updateStartupUI();
+        refreshStartupProfileDropdown();
       }
-      window.addEventListener('DOMContentLoaded', async () => {
-        // Mount shared debug block
-        renderDebugBlock(document.getElementById('debugBlockContainer'));
-        setMode('url');
-        try {
-          profiles = (await window.electronAPI.profilesLoad()) || [];
-          activeProfileId = await window.electronAPI.activeProfileGet();
-          startupProfileId = await window.electronAPI.startupProfileGet();
-          if (profiles.length === 0) {
-            const blank = {
-              id: generateId(),
-              name: 'Profile 1',
-              url: '',
-              username: '',
-              password: '',
-            };
-            profiles.push(blank);
-            activeProfileId = blank.id;
-          } else if (!profiles.find((p) => p.id === activeProfileId)) {
-            activeProfileId = profiles[0].id;
-          }
-          renderProfileList();
-          loadProfileIntoForm(activeProfileId);
-          updateStartupUI();
-        } catch (e) {
-          console.error('[upv config] failed to load profiles', e);
-        }
-      });
-      document.getElementById('startupCheck').addEventListener('change', function () {
-        if (this.checked) {
-          startupProfileId = activeProfileId;
-          window.electronAPI.startupProfileSet(activeProfileId);
-        } else {
-          startupProfileId = null;
-          window.electronAPI.startupProfileSet(null);
-        }
-      });
-      function cancel() {
-        window.electronAPI.restart();
-      }
-      ['profileName', 'url', 'username', 'password'].forEach((id) => {
-        const el = document.getElementById(id);
-        if (el)
-          el.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') save();
-          });
-      });
+
+      // ── Messages ──────────────────────────────────────────────────────────────
       function showMsg(text, type = 'error') {
         const el = document.getElementById('msg');
         el.className = 'upv-msg upv-msg--' + type + ' upv-msg--visible';
@@ -944,12 +1607,15 @@
       function setInputError(id, hasErr) {
         document.getElementById(id).classList.toggle('upv-input--error', hasErr);
       }
+
+      // ── Save profile ──────────────────────────────────────────────────────────
       async function save() {
         const saveBtn = document.getElementById('saveBtn');
         const spinner = document.getElementById('btnSpinner');
         const btnIcon = document.getElementById('btnIcon');
         hideMsg();
         ['url', 'username', 'password', 'profileName'].forEach((id) => setInputError(id, false));
+
         const name = document.getElementById('profileName').value.trim();
         const url = document.getElementById('url').value.trim();
         if (!name) {
@@ -970,30 +1636,32 @@
           document.getElementById('url').focus();
           return;
         }
+
         const profileIdx = profiles.findIndex((p) => p.id === activeProfileId);
         if (profileIdx < 0) {
           showMsg('No profile selected.');
           return;
         }
+        const pv = document.getElementById('protectVersion').value;
+
         if (currentMode === 'url') {
           profiles[profileIdx] = { ...profiles[profileIdx], name, url };
-          // preserve or clear protectVersion from the dropdown
-          const pv = document.getElementById('protectVersion').value;
-          if (pv) {
-            profiles[profileIdx].protectVersion = pv;
-          } else {
-            delete profiles[profileIdx].protectVersion;
-          }
+          if (pv) profiles[profileIdx].protectVersion = pv;
+          else delete profiles[profileIdx].protectVersion;
           window.electronAPI.profilesSave(profiles);
           window.electronAPI.activeProfileSet(activeProfileId);
           saveBtn.disabled = true;
           spinner.classList.add('upv-spinner--active');
           btnIcon.style.display = 'none';
-          showMsg('URL updated! Connecting...', 'success');
+          showMsg(
+            profiles.length === 1 ? 'URL updated! Launching…' : 'URL updated! Returning…',
+            'success',
+          );
           await new Promise((r) => setTimeout(r, 800));
-          window.electronAPI.restart();
+          navigateAfterSave();
           return;
         }
+
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value;
         if (!username) {
@@ -1003,8 +1671,7 @@
           return;
         }
         const existing = profiles[profileIdx];
-        const isNew = !existing.password;
-        if (isNew && !password) {
+        if (!existing.password && !password) {
           showMsg('Password is required for the initial setup.');
           setInputError('password', true);
           document.getElementById('password').focus();
@@ -1017,22 +1684,147 @@
           document.getElementById('password').focus();
           return;
         }
-        const pvFull = document.getElementById('protectVersion').value;
-        const updatedProfile = { ...existing, name, url, username, password: finalPassword };
-        if (pvFull) {
-          updatedProfile.protectVersion = pvFull;
-        } else {
-          delete updatedProfile.protectVersion;
-        }
-        profiles[profileIdx] = updatedProfile;
+
+        const updated = { ...existing, name, url, username, password: finalPassword };
+        if (pv) updated.protectVersion = pv;
+        else delete updated.protectVersion;
+        profiles[profileIdx] = updated;
         window.electronAPI.profilesSave(profiles);
         window.electronAPI.activeProfileSet(activeProfileId);
         saveBtn.disabled = true;
         spinner.classList.add('upv-spinner--active');
         btnIcon.style.display = 'none';
-        showMsg('Configuration saved! Connecting...', 'success');
+        showMsg(
+          profiles.length === 1
+            ? 'Configuration saved! Launching…'
+            : 'Configuration saved! Returning…',
+          'success',
+        );
         await new Promise((r) => setTimeout(r, 800));
-        window.electronAPI.restart();
+        navigateAfterSave();
+      }
+
+      // ── Navigation helper ─────────────────────────────────────────────────────
+      // After saving we navigate without a full app restart:
+      //   - 1 profile  → launch it directly via launchProfile()
+      //   - > 1 profile → go to profile selection screen
+      function navigateAfterSave() {
+        if (profiles.length === 1) {
+          window.electronAPI.launchProfile(profiles[0].id);
+        } else {
+          window.electronAPI.switchNextProfile();
+        }
+      }
+
+      function cancel() {
+        navigateAfterSave();
+      }
+
+      ['profileName', 'url', 'username', 'password'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el)
+          el.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') save();
+          });
+      });
+
+      // ── Startup tab ───────────────────────────────────────────────────────────
+      function refreshStartupProfileDropdown(selectedId) {
+        const sel = document.getElementById('startupProfile');
+        const prev = selectedId !== undefined ? selectedId : sel.value;
+        sel.innerHTML = '<option value="">None – show profile selection screen</option>';
+        profiles.forEach((p) => {
+          const opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = p.name || 'Unnamed Profile';
+          sel.appendChild(opt);
+        });
+        if (prev && profiles.find((p) => p.id === prev)) sel.value = prev;
+      }
+
+      async function loadStartupTab() {
+        const settings = await window.electronAPI.startupSettingsGet();
+        refreshStartupProfileDropdown(settings.profileId || '');
+        document.getElementById('startupFullscreen').checked = !!settings.fullscreen;
+        document.getElementById('displayRow').style.display = settings.fullscreen
+          ? 'block'
+          : 'none';
+        await refreshDisplayDropdown(settings.displayIndex ?? 0);
+      }
+
+      async function refreshDisplayDropdown(selectedIndex) {
+        const sel = document.getElementById('startupDisplay');
+        try {
+          const displays = await window.electronAPI.displaysGet();
+          sel.innerHTML = '';
+          displays.forEach((d) => {
+            const opt = document.createElement('option');
+            opt.value = String(d.index);
+            opt.textContent = d.label;
+            sel.appendChild(opt);
+          });
+          sel.value = String(selectedIndex ?? 0);
+          if (!sel.value && displays.length > 0) sel.value = '0';
+        } catch (_) {
+          sel.innerHTML = '<option value="0">Primary Display</option>';
+        }
+      }
+
+      document.getElementById('startupFullscreen').addEventListener('change', function () {
+        document.getElementById('displayRow').style.display = this.checked ? 'block' : 'none';
+        if (this.checked)
+          refreshDisplayDropdown(parseInt(document.getElementById('startupDisplay').value) || 0);
+      });
+
+      async function saveStartup() {
+        const profileId = document.getElementById('startupProfile').value || null;
+        const fullscreen = document.getElementById('startupFullscreen').checked;
+        const displayIndex = parseInt(document.getElementById('startupDisplay').value) || 0;
+
+        window.electronAPI.startupSettingsSet({ profileId, fullscreen, displayIndex });
+
+        const msgEl = document.getElementById('startupMsg');
+        document.getElementById('startupMsgText').textContent = 'Startup settings saved.';
+        msgEl.className = 'upv-msg upv-msg--success upv-msg--visible';
+        setTimeout(() => msgEl.classList.remove('upv-msg--visible'), 3000);
+      }
+
+      // ── Init ──────────────────────────────────────────────────────────────────
+      window.addEventListener('DOMContentLoaded', async () => {
+        renderDebugBlock(document.getElementById('debugBlockContainer'));
+        setMode('url');
+        try {
+          profiles = (await window.electronAPI.profilesLoad()) || [];
+          activeProfileId = await window.electronAPI.activeProfileGet();
+          if (profiles.length === 0) {
+            const blank = {
+              id: generateId(),
+              name: 'Profile 1',
+              url: '',
+              username: '',
+              password: '',
+            };
+            profiles.push(blank);
+            activeProfileId = blank.id;
+          } else if (!profiles.find((p) => p.id === activeProfileId)) {
+            activeProfileId = profiles[0].id;
+          }
+          renderProfileList();
+          loadProfileIntoForm(activeProfileId);
+          await loadStartupTab();
+
+          // Show "← Profile Selection" nav link when multiple profiles are configured
+          if (profiles.length > 1) {
+            const navBtn = document.getElementById('navToProfiles');
+            if (navBtn) navBtn.style.display = 'flex';
+          }
+        } catch (e) {
+          console.error('[upv config] failed to load data', e);
+        }
+      });
+
+      function goToProfiles() {
+        window.electronAPI.switchNextProfile();
       }
     </script>
   </body>

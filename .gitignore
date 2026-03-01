@@ -3,6 +3,7 @@ dist
 .idea
 builds
 store
+coverage
 
 # OS
 .DS_Store

@@ -80,6 +80,10 @@ jobs:
         if: steps.guard.outputs.run == 'true'
         run: npm ci
 
+      - name: Run tests
+        if: steps.guard.outputs.run == 'true'
+        run: npm run test:coverage
+
       - name: Build
         if: steps.guard.outputs.run == 'true'
         env:

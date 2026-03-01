@@ -2,7 +2,14 @@
 
 /**
  * @file v4.js
- * @description Liveview handler Protect 4.x / 5.x / 6.x / 7.x – REFERENCE COPY ONLY.
+ * @description Liveview handler Protect 4.x / 5.x / 6.x / 7.x+ – REFERENCE COPY ONLY.
+ *
+ * All modern Protect versions (>= 4.x, including 7.x and beyond) share the
+ * same UI structure introduced in 4.x and are handled identically here.
+ * Future versions are supported automatically as long as the DOM selectors
+ * remain stable.
+ *
+ * Legacy 3.x is handled by v3.js (isLegacyVersion3() guard in preload.js).
  *
  * Inlined into src/js/preload.js. Edit here for review, then sync to preload.js.
  */

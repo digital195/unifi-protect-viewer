@@ -64,6 +64,28 @@
           </div>
         </div>
 
+        <!-- Navigation back to profile selection (only shown when >1 profiles exist) -->
+        <button
+          class="upv-nav-link"
+          id="navToProfiles"
+          style="display: none"
+          onclick="goToProfiles()"
+        >
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+          Profile Selection
+        </button>
+
         <div class="upv-alert upv-alert--warn">
           <svg
             width="13"
@@ -135,17 +157,35 @@
           </button>
         </div>
 
-        <div class="upv-divider"></div>
+        <!-- Spacer pushes bottom section down -->
+        <div class="upv-sidebar-spacer"></div>
 
-        <p class="upv-section-title">Keyboard Shortcuts</p>
-        <div class="upv-hotkeys">
-          <div class="upv-hotkey-row"><kbd>F9</kbd><span>Restart</span></div>
-          <div class="upv-hotkey-row"><kbd>F10</kbd><span>Edit Configuration</span></div>
-          <div class="upv-hotkey-row"><kbd>F11</kbd><span>Toggle Fullscreen</span></div>
+        <!-- ── Bottom block: About / Keyboard Shortcuts / Debug & Support ── -->
+        <div class="upv-sidebar-bottom">
+          <div class="upv-divider"></div>
+
+          <p class="upv-section-title">About</p>
+          <p class="upv-about-text">
+            <strong class="upv-text-secondary">Unifi Protect Viewer</strong> is an open-source
+            desktop wrapper for Unifi Protect.
+          </p>
+          <p class="upv-about-text">
+            Click a profile to connect. Use
+            <kbd class="upv-kbd">F10</kbd> during liveview to cycle between profiles.
+          </p>
+
+          <div class="upv-divider"></div>
+
+          <p class="upv-section-title">Keyboard Shortcuts</p>
+          <div class="upv-hotkeys">
+            <div class="upv-hotkey-row"><kbd>F9</kbd><span>Restart</span></div>
+            <div class="upv-hotkey-row"><kbd>F10</kbd><span>Edit Configuration</span></div>
+            <div class="upv-hotkey-row"><kbd>F11</kbd><span>Toggle Fullscreen</span></div>
+          </div>
+
+          <div class="upv-divider"></div>
+          <div id="debugBlockContainer"></div>
         </div>
-
-        <div class="upv-divider"></div>
-        <div id="debugBlockContainer"></div>
       </aside>
 
       <!-- ── Main panel ──────────────────────────────────────────────────────── -->
@@ -176,8 +216,8 @@
             credentials, or the Unifi Protect instance being unavailable.
           </p>
           <p class="upv-error-card__text">
-            Use the <strong style="color: var(--text-primary)">Edit Configuration</strong> button on
-            the left to update your settings.
+            Use the <strong class="upv-text-primary">Edit Configuration</strong> button on the left
+            to update your settings.
           </p>
 
           <div class="upv-error-hint">
@@ -193,8 +233,17 @@
     </div>
     <script src="debug-block.js"></script>
     <script>
-      window.addEventListener('DOMContentLoaded', function () {
+      window.addEventListener('DOMContentLoaded', async function () {
         renderDebugBlock(document.getElementById('debugBlockContainer'));
+        // Show "← Profile Selection" only when multiple profiles are available
+        try {
+          const profiles = (await window.electronAPI.profilesLoad()) || [];
+          if (profiles.length > 1) {
+            document.getElementById('navToProfiles').style.display = 'flex';
+          }
+        } catch (_) {
+          /* ignore – IPC may not be ready */
+        }
       });
       function openConfig() {
         window.electronAPI.openConfig();
@@ -205,6 +254,9 @@
       function resetApp() {
         window.electronAPI.reset();
         window.electronAPI.restart();
+      }
+      function goToProfiles() {
+        window.electronAPI.switchNextProfile();
       }
     </script>
   </body>

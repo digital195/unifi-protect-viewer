@@ -6,6 +6,8 @@
   "scripts": {
     "start": "electron --ignore=builds .",
     "build": "node scripts/build.js",
+    "test": "node scripts/run-tests.js",
+    "test:coverage": "node scripts/run-tests.js --coverage",
     "build:win:x64": "cross-env UPV_PLATFORM=win32 UPV_ARCH=x64 node scripts/build.js",
     "build:win:ia32": "cross-env UPV_PLATFORM=win32 UPV_ARCH=ia32 node scripts/build.js",
     "build:mac:x64": "cross-env UPV_PLATFORM=darwin UPV_ARCH=x64 node scripts/build.js",

@@ -5,7 +5,7 @@
  * @description Main browser window creation and lifecycle management.
  */
 
-const { BrowserWindow } = require('electron');
+const { BrowserWindow, screen } = require('electron');
 const path = require('node:path');
 const store = require('./store');
 const { createTray } = require('./tray');
@@ -27,9 +27,12 @@ const ICON_PATH = path.join(__dirname, '../img/128.png');
  *  - Profile selection page when multiple profiles exist and no startup profile set.
  *  - Directly loads the liveview when one profile or startup profile configured.
  *
+ * CLI `--profile <name>` overrides the store's startup profile (case-insensitive match by name).
+ *
  * @param {BrowserWindow} win
+ * @param {{ monitor: number|null, fullscreen: boolean|null, profile: string|null }} [cliArgs]
  */
-async function loadInitialPage(win) {
+async function loadInitialPage(win, cliArgs = {}) {
   const profiles = store.getProfiles();
 
   if (profiles.length === 0) {
@@ -38,20 +41,33 @@ async function loadInitialPage(win) {
     return;
   }
 
-  const startupId = store.getStartupProfileId();
   let activeProfile;
 
-  if (startupId) {
-    // Auto-select startup profile
-    const found = profiles.find((p) => p.id === startupId);
+  // ── CLI --profile override (highest priority) ───────────────────────────────
+  if (cliArgs.profile) {
+    const needle = cliArgs.profile.toLowerCase();
+    const found = profiles.find((p) => p.name.toLowerCase() === needle);
     if (found) {
       activeProfile = found;
       store.setActiveProfileId(found.id);
     }
+    // If not found, fall through to normal startup logic
   }
 
+  // ── Store startup profile ───────────────────────────────────────────────────
+  if (!activeProfile) {
+    const startupId = store.getStartupProfileId();
+    if (startupId) {
+      const found = profiles.find((p) => p.id === startupId);
+      if (found) {
+        activeProfile = found;
+        store.setActiveProfileId(found.id);
+      }
+    }
+  }
+
+  // ── Single profile shortcut ─────────────────────────────────────────────────
   if (!activeProfile && profiles.length === 1) {
-    // Only one profile – use it directly
     activeProfile = profiles[0];
     store.setActiveProfileId(profiles[0].id);
   }
@@ -79,9 +95,15 @@ async function loadInitialPage(win) {
 
 /**
  * Creates and returns the main application window.
+ *
+ * @param {{ monitor: number|null, fullscreen: boolean|null, profile: string|null }} [cliArgs]
+ *   Optional CLI startup argument overrides. These are runtime-only and do not modify the store.
+ *   - `monitor`    1-based index of the display to use (overrides startupSettings.displayIndex)
+ *   - `fullscreen` true → start fullscreen (overrides startupSettings.fullscreen)
+ *   - `profile`    Profile name to auto-select (case-insensitive, overrides startupSettings.profileId)
  * @returns {Promise<BrowserWindow>}
  */
-async function createMainWindow() {
+async function createMainWindow(cliArgs = {}) {
   const bounds = store.getWindowBounds();
 
   const win = new BrowserWindow({
@@ -142,7 +164,50 @@ async function createMainWindow() {
     win.loadFile(path.join(__dirname, '../html/index.html'));
   });
 
-  await loadInitialPage(win);
+  await loadInitialPage(win, cliArgs);
+
+  // ── Apply display/fullscreen settings (CLI overrides take priority) ──────────
+  const startupSettings = store.getStartupSettings();
+
+  // CLI --fullscreen overrides store setting; null means "use store value"
+  const effectiveFullscreen =
+    cliArgs.fullscreen !== null && cliArgs.fullscreen !== undefined
+      ? cliArgs.fullscreen
+      : startupSettings.fullscreen;
+
+  // Whether an explicit --monitor CLI arg was given
+  const cliMonitorRequested = cliArgs.monitor !== null && cliArgs.monitor !== undefined;
+
+  // Determine effective display index:
+  //  - CLI --monitor (1-based) → subtract 1 for 0-based array index
+  //  - Store displayIndex is used only when fullscreen is active (it controls which screen
+  //    to go fullscreen on). Without fullscreen it must NOT override the saved window position.
+  const effectiveDisplayIndex = cliMonitorRequested
+    ? cliArgs.monitor - 1
+    : (startupSettings.displayIndex ?? 0);
+
+  // Reposition the window only when:
+  //  - Fullscreen is requested (move to the target display first), OR
+  //  - An explicit CLI --monitor arg was given (intentional monitor override)
+  //
+  // Importantly: store.displayIndex alone (without fullscreen) must NOT trigger a
+  // setBounds() call — doing so would overwrite the user's saved window position.
+  if (effectiveFullscreen || cliMonitorRequested) {
+    const displays = screen.getAllDisplays();
+    const idx = Math.max(0, Math.min(effectiveDisplayIndex, displays.length - 1));
+    const targetDisplay = displays[idx];
+    if (targetDisplay) {
+      win.setBounds({
+        x: targetDisplay.bounds.x,
+        y: targetDisplay.bounds.y,
+        width: targetDisplay.bounds.width,
+        height: targetDisplay.bounds.height,
+      });
+    }
+    if (effectiveFullscreen) {
+      win.setFullScreen(true);
+    }
+  }
 
   return win;
 }

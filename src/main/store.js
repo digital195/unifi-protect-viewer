@@ -105,15 +105,51 @@ function setActiveProfileId(id) {
   store.set('activeProfileId', id);
 }
 
-/** Returns the startup profile ID (auto-select on launch) or undefined. */
+/** Returns the startup profile ID (auto-select on launch) or undefined.
+ * @deprecated Prefer getStartupSettings().profileId
+ */
 function getStartupProfileId() {
-  return store.get('startupProfileId');
+  return getStartupSettings().profileId ?? store.get('startupProfileId');
 }
 
-/** Sets the startup profile ID. Pass null/undefined to clear. */
+/** Sets the startup profile ID. Pass null/undefined to clear.
+ * @deprecated Prefer setStartupSettings({ profileId })
+ */
 function setStartupProfileId(id) {
-  if (id) {
-    store.set('startupProfileId', id);
+  const current = getStartupSettings();
+  setStartupSettings({ ...current, profileId: id || null });
+}
+
+// ── Global startup settings ────────────────────────────────────────────────────
+
+/**
+ * Returns the global startup settings object.
+ * @returns {{ profileId: string|null, fullscreen: boolean, displayIndex: number }}
+ */
+function getStartupSettings() {
+  return store.get('startupSettings', {
+    profileId: null,
+    fullscreen: false,
+    displayIndex: 0,
+  });
+}
+
+/**
+ * Persists the global startup settings object.
+ * Merges the provided partial object with the current settings.
+ * @param {{ profileId?: string|null, fullscreen?: boolean, displayIndex?: number }} settings
+ */
+function setStartupSettings(settings) {
+  const current = store.get('startupSettings', {
+    profileId: null,
+    fullscreen: false,
+    displayIndex: 0,
+  });
+  const merged = { ...current, ...settings };
+  store.set('startupSettings', merged);
+  // Keep legacy key in sync for any code that still reads 'startupProfileId' directly
+  if (merged.profileId) {
+    store.set('startupProfileId', merged.profileId);
   } else {
     store.delete('startupProfileId');
   }
@@ -202,6 +238,8 @@ module.exports = {
   setActiveProfileId,
   getStartupProfileId,
   setStartupProfileId,
+  getStartupSettings,
+  setStartupSettings,
   getActiveProfile,
   getWindowBounds,
   saveWindowBounds,

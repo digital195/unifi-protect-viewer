@@ -10,6 +10,7 @@ const { app, Menu } = require('electron');
 const { registerIpcHandlers } = require('./ipc');
 const { createMainWindow } = require('./window');
 const { createLogger, LOG_SOURCE_APP } = require('./logger');
+const { parseCliArgs } = require('./cli');
 
 // ── Certificate handling ──────────────────────────────────────────────────────
 // Unifi Protect commonly uses self-signed certificates, so we skip TLS errors.
@@ -38,10 +39,17 @@ app.whenReady().then(async () => {
   _logger = createLogger({ app });
   _logger.log(LOG_SOURCE_APP, 'app ready – starting up');
 
-  registerIpcHandlers(getLogger);
-  await createMainWindow();
+  // Parse CLI startup arguments (runtime-only overrides, not persisted to store)
+  const cliArgs = parseCliArgs();
+  if (cliArgs.monitor !== null || cliArgs.fullscreen !== null || cliArgs.profile !== null) {
+    _logger.log(LOG_SOURCE_APP, `CLI args: ${JSON.stringify(cliArgs)}`);
+  }
 
-  // macOS: re-create the window when the dock icon is clicked and no windows exist
+  registerIpcHandlers(getLogger);
+  await createMainWindow(cliArgs);
+
+  // macOS: re-create the window when the dock icon is clicked and no windows exist.
+  // Do NOT pass cliArgs here – the CLI overrides only apply to the initial launch.
   app.on('activate', async () => {
     const { BrowserWindow } = require('electron');
     if (BrowserWindow.getAllWindows().length === 0) {

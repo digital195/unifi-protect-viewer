@@ -12,7 +12,6 @@
         flex-direction: column;
         gap: 7px;
         flex: 1;
-        overflow-y: auto;
       }
 
       .upv-profile-item {
@@ -134,13 +133,7 @@
       }
 
       /* ── Sidebar note ────────────────────────────────────────────────────── */
-      .upv-sidebar-note {
-        font-size: 10px;
-        color: var(--text-muted);
-        line-height: 1.6;
-        margin-top: auto;
-        padding-top: 6px;
-      }
+      /* moved to shared.css – .upv-sidebar-note */
     </style>
   </head>
   <body>
@@ -187,25 +180,39 @@
                 d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
               />
             </svg>
-            Edit Profiles
+            Edit Configuration
           </button>
         </div>
 
-        <div class="upv-divider"></div>
+        <!-- Spacer pushes bottom section down -->
+        <div class="upv-sidebar-spacer"></div>
 
-        <p class="upv-section-title">Keyboard Shortcuts</p>
-        <div class="upv-hotkeys">
-          <div class="upv-hotkey-row"><kbd>F9</kbd><span>Restart</span></div>
-          <div class="upv-hotkey-row"><kbd>F10</kbd><span>Switch Profile</span></div>
-          <div class="upv-hotkey-row"><kbd>F11</kbd><span>Toggle Fullscreen</span></div>
+        <!-- ── Bottom block: About / Keyboard Shortcuts / Debug & Support ── -->
+        <div class="upv-sidebar-bottom">
+          <div class="upv-divider"></div>
+
+          <p class="upv-section-title">About</p>
+          <p class="upv-about-text">
+            <strong class="upv-text-secondary">Unifi Protect Viewer</strong> is an open-source
+            desktop wrapper for Unifi Protect.
+          </p>
+          <p class="upv-about-text">
+            Click a profile to connect. Use
+            <kbd class="upv-kbd">F10</kbd> during liveview to cycle between profiles.
+          </p>
+
+          <div class="upv-divider"></div>
+
+          <p class="upv-section-title">Keyboard Shortcuts</p>
+          <div class="upv-hotkeys">
+            <div class="upv-hotkey-row"><kbd>F9</kbd><span>Restart</span></div>
+            <div class="upv-hotkey-row"><kbd>F10</kbd><span>Switch Profile</span></div>
+            <div class="upv-hotkey-row"><kbd>F11</kbd><span>Toggle Fullscreen</span></div>
+          </div>
+
+          <div class="upv-divider"></div>
+          <div id="debugBlockContainer"></div>
         </div>
-
-        <div class="upv-sidebar-note">
-          Click a profile to connect. Use F10 during liveview to cycle between profiles.
-        </div>
-
-        <div class="upv-divider"></div>
-        <div id="debugBlockContainer"></div>
       </aside>
 
       <!-- ── Main panel ──────────────────────────────────────────────────────── -->
@@ -227,8 +234,7 @@
 
           <p class="upv-card__body">
             Choose which NVR or dashboard you want to connect to. You can switch profiles at any
-            time using <strong style="color: var(--text-primary)">F10</strong> or via the system
-            tray menu.
+            time using <strong class="upv-text-primary">F10</strong> or via the system tray menu.
           </p>
 
           <div class="upv-info-section">
@@ -280,7 +286,7 @@
 
         if (profiles.length === 0) {
           list.innerHTML =
-            '<div class="upv-empty"><span>No profiles found.</span><span>Use "Edit Profiles" to create one.</span></div>';
+            '<div class="upv-empty"><span>No profiles found.</span><span>Use "Edit Configuration" to create one.</span></div>';
           return;
         }
 
@@ -323,7 +329,8 @@
 
         const startupChecked = document.getElementById('startupCheck').checked;
         if (startupChecked) {
-          window.electronAPI.startupProfileSet(id);
+          // Write to the unified startupSettings (keeps fullscreen/display settings intact)
+          window.electronAPI.startupSettingsSet({ profileId: id });
         }
 
         window.electronAPI.launchProfile(id);
@@ -356,7 +363,7 @@
       // Clear startup profile if checkbox unchecked when leaving
       document.getElementById('startupCheck').addEventListener('change', function () {
         if (!this.checked) {
-          window.electronAPI.startupProfileSet(null);
+          window.electronAPI.startupSettingsSet({ profileId: null });
         }
       });
 

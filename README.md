@@ -22,6 +22,7 @@ A clean Electron app that auto-logs into your Unifi Protect instance and present
 - 🔒 **Self-signed certificates** — accepted automatically
 - 💾 **Portable mode** — config stored next to the executable (USB-stick friendly)
 - 📐 **Persistent window geometry** — size and position remembered between sessions
+- 🚀 **Startup arguments** — set monitor, fullscreen and profile via command-line for kiosk/shortcut setups
 
 ---
 
@@ -33,14 +34,11 @@ A clean Electron app that auto-logs into your Unifi Protect instance and present
 ### Profile selection
 ![Profile selection](screenshots/profile-selection.png)
 
-### Configuration – profile editor
-![Configuration – profile editor](screenshots/configuration-profiles.png)
+### Configuration – Connection / Profiles
+![Configuration – Connection / Profiles](screenshots/configuration-connection.png)
 
-### Configuration – URL only mode
-![Configuration – URL only](screenshots/configuration-url.png)
-
-### Configuration – Full edit mode
-![Configuration – Full edit](screenshots/configuration-full.png)
+### Configuration – Startup
+![Configuration – Startup](screenshots/configuration-startup.png)
 
 ### Loading overlay
 ![Loading overlay](screenshots/loading.png)
@@ -79,7 +77,7 @@ Open the configuration editor (`F10` or tray → **Edit Configuration**).
 - **Delete** the active profile with the **Delete** button (at least one profile must remain)
 - **Set a startup profile** by enabling the **"Always start with this profile"** checkbox (only shown when more than one profile exists)
 
-![Configuration – profile editor with sidebar](screenshots/configuration-profiles-url.png)
+![Configuration – profile editor with sidebar](screenshots/configuration-connection.png)
 
 ---
 
@@ -130,6 +128,67 @@ https://192.168.1.1/protect/liveview/635e65bd000c1c0387005a5f
 | Liveview, 1 profile saved                      | Opens the configuration editor     |
 | Liveview, 2+ profiles saved                    | Opens the profile selection screen |
 | Configuration / profile selection / error page | Opens the configuration editor     |
+
+---
+
+## Command-line Arguments
+
+Startup arguments let you control **monitor**, **fullscreen mode** and the **profile** to load — directly from a shortcut, script or task scheduler. They are **runtime-only overrides** and do not modify saved settings.
+
+### Available arguments
+
+| Argument              | Description                                                                 |
+|-----------------------|-----------------------------------------------------------------------------|
+| `--monitor <n>`       | Launch on monitor **n** (1 = primary, 2 = second monitor, …)               |
+| `--fullscreen`        | Start in fullscreen mode                                                    |
+| `--profile <name>`    | Load the named profile on startup (case-insensitive, exact name match)      |
+
+**Behaviour:**
+- CLI arguments take **priority over saved startup settings** (they do not overwrite them).
+- If `--profile` is given but no profile with that name exists, the app falls back to the stored startup profile or the profile-selection screen as usual.
+- If `--monitor` exceeds the number of connected displays, it is clamped to the last available display.
+- `--fullscreen` and `--monitor` can be used independently — you can move to a different monitor without enabling fullscreen.
+
+### Examples
+
+**Windows – portable executable (PowerShell / Command Prompt):**
+
+```powershell
+# Start fullscreen on the second monitor with the "Warehouse" profile
+.\unifi-protect-viewer.exe --monitor 2 --fullscreen --profile "Warehouse"
+
+# Start on monitor 2 without fullscreen
+.\unifi-protect-viewer.exe --monitor 2 --profile "Front Door"
+
+# Start fullscreen on the primary monitor
+.\unifi-protect-viewer.exe --fullscreen
+
+# Start a specific profile without any display override
+.\unifi-protect-viewer.exe --profile "Office NVR"
+```
+
+**Development (`npm start`):**
+
+```bash
+# npm run start will not forward extra args directly, use node/electron instead:
+npx electron . --monitor 2 --fullscreen --profile "Warehouse"
+```
+
+**Windows Shortcut:**  
+Right-click your desktop shortcut → *Properties* → append the arguments to the **Target** field:
+
+```
+"C:\...\unifi-protect-viewer.exe" --monitor 2 --fullscreen --profile "Warehouse"
+```
+
+**Windows Task Scheduler:**  
+Set the **Program/script** to the `.exe` path and put the arguments in the **Add arguments** field:
+
+```
+--monitor 2 --fullscreen --profile "Warehouse"
+```
+
+> 💡 **Tip:** Create one shortcut per camera location and pin them to your taskbar — each shortcut can target a different monitor, profile and fullscreen setting.
 
 ---
 
@@ -222,6 +281,7 @@ src/
 ├── main.js                  # Electron entry point
 ├── main/
 │   ├── app.js               # App bootstrap & lifecycle
+│   ├── cli.js               # CLI startup argument parser (--monitor, --fullscreen, --profile)
 │   ├── ipc.js               # IPC handler registration
 │   ├── store.js             # Persistent config storage – profiles, startup pref, window bounds
 │   ├── tray.js              # System-tray icon & context menu (incl. profile switcher)
@@ -239,7 +299,7 @@ src/
 │       ├── login.js         # Auto-login handler
 │       ├── v2.js            # Liveview handler – Protect 2.x
 │       ├── v3.js            # Liveview handler – Protect 3.x
-│       └── v4.js            # Liveview handler – Protect 4.x / 5.x / 6.x
+│       └── v4.js            # Liveview handler – Protect 4.x / 5.x / 6.x / 7.x
 └── img/
     └── 128.png / 128.ico / 128.icns / 512.png
 

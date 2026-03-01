@@ -70,6 +70,10 @@ jobs:
         with:
           node-version: 20
 
+      - name: Tests
+        run: |
+          npm run test:coverage
+
       # Wine is required on Linux for Windows cross-builds:
       # electron-packager uses rcedit (a Windows PE tool) to embed the icon
       # and version metadata into the .exe.  rcedit/cross-spawn-windows-exe

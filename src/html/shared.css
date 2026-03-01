@@ -47,6 +47,8 @@ html,
 body {
   width: 100%;
   height: 100%;
+  max-height: 100vh;
+  overflow: hidden;
   background: var(--bg-primary);
   color: var(--text-primary);
   font-family:
@@ -63,10 +65,114 @@ body {
 .upv-layout {
   display: grid;
   grid-template-columns: 320px 1fr;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
-/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+/* ── Config card (used in config.html left column) ───────────────────────── */
+
+.upv-cfg-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px 18px 14px;
+  margin-bottom: 12px;
+}
+
+/* Shared card section title (used by both upv-cfg-card and upv-info-card) */
+.upv-cfg-card__title,
+.upv-info-card__title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  margin-top: 0;
+  padding: 0;
+}
+
+/* cfg-card title has an optional icon and slightly more bottom spacing */
+.upv-cfg-card__title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 12px;
+}
+.upv-cfg-card__title svg {
+  color: var(--accent);
+  opacity: 0.8;
+}
+
+/* ── Info card (right panel) ─────────────────────────────────────────────── */
+
+.upv-info-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px 18px 14px;
+  margin-bottom: 12px;
+}
+.upv-info-card p {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.65;
+  margin-bottom: 8px;
+}
+.upv-info-card p:last-child {
+  margin-bottom: 0;
+}
+.upv-info-card__note {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  margin-bottom: 0;
+  line-height: 1.55;
+}
+
+/* ── Version / feature badges ────────────────────────────────────────────── */
+
+.upv-badge {
+  display: inline-flex;
+  align-items: center;
+  background: var(--accent-light);
+  color: var(--accent);
+  border: 1px solid rgba(0, 111, 255, 0.25);
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 5px;
+  margin-bottom: 5px;
+}
+
+/* ── Inline kbd (used in About text) ─────────────────────────────────────── */
+
+kbd.upv-kbd {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 10px;
+  color: var(--accent);
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-weight: 700;
+}
+
+/* ── Text colour helpers (avoid repetitive inline style="color:…") ────────── */
+
+.upv-text-primary {
+  color: var(--text-primary);
+}
+.upv-text-secondary {
+  color: var(--text-secondary);
+}
+.upv-text-muted {
+  color: var(--text-muted);
+}
+
+/* ── Sidebar note ────────────────────────────────────────────────────────── */
 
 .upv-sidebar {
   background: var(--bg-secondary);
@@ -74,7 +180,10 @@ body {
   display: flex;
   flex-direction: column;
   padding: 16px 18px;
+  height: 100vh;
   overflow-y: auto;
+  /* Sidebar scrolls independently */
+  overscroll-behavior: contain;
 }
 
 /* ── Brand block ─────────────────────────────────────────────────────────── */
@@ -118,10 +227,6 @@ body {
   color: var(--text-muted);
   margin-bottom: 5px;
   margin-top: 11px;
-}
-
-.upv-section-title:first-of-type {
-  margin-top: 0;
 }
 
 /* ── Divider ─────────────────────────────────────────────────────────────── */
@@ -263,6 +368,9 @@ body {
   align-items: center;
   justify-content: center;
   padding: 40px;
+  height: 100vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* ── Card (right panel) ──────────────────────────────────────────────────── */
@@ -332,22 +440,6 @@ body {
   margin-bottom: 6px;
 }
 
-/* ── Version badges ──────────────────────────────────────────────────────── */
-
-.upv-badge {
-  display: inline-flex;
-  align-items: center;
-  background: var(--accent-light);
-  color: var(--accent);
-  border: 1px solid rgba(0, 111, 255, 0.25);
-  border-radius: 20px;
-  padding: 3px 10px;
-  font-size: 11px;
-  font-weight: 600;
-  margin-right: 5px;
-  margin-bottom: 5px;
-}
-
 /* ── Code / URL example ──────────────────────────────────────────────────── */
 
 .upv-code-block {
@@ -381,6 +473,79 @@ body {
 .upv-debug-btn {
   justify-content: flex-start;
   gap: 8px;
+}
+
+/* ── Sidebar navigation link ─────────────────────────────────────────────── */
+
+.upv-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  text-decoration: none;
+  margin-bottom: 10px;
+  transition:
+    background 0.18s,
+    border-color 0.18s,
+    color 0.18s;
+  width: 100%;
+  text-align: left;
+}
+
+.upv-nav-link:hover {
+  background: var(--bg-card);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
+.upv-nav-link svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+/* ── Sidebar bottom block (About + Keyboard Shortcuts + Debug & Support) ──── */
+/* This block never gets pushed out of view – it flex-shrinks to 0 while the  */
+/* top content area (profile list, nav links, etc.) scrolls independently.    */
+
+.upv-sidebar-bottom {
+  flex-shrink: 0;
+  margin-top: 0;
+}
+
+/* ── About text in sidebar ───────────────────────────────────────────────── */
+
+.upv-about-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.65;
+  margin-bottom: 4px;
+}
+
+.upv-about-text + .upv-about-text {
+  margin-top: 6px;
+}
+
+/* ── Sidebar spacer: pushes bottom block to the bottom ───────────────────── */
+
+.upv-sidebar-spacer {
+  flex: 1;
+  min-height: 12px;
+}
+
+/* ── Field hint (small muted text below an input/select) ─────────────────── */
+
+.upv-field__hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-top: 2px;
 }
 
 /* ── Scrollbar ───────────────────────────────────────────────────────────── */

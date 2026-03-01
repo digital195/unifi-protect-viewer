@@ -5,7 +5,7 @@
  * @description Registers all IPC handlers for the main process.
  */
 
-const { ipcMain, BrowserWindow, shell } = require('electron');
+const { ipcMain, BrowserWindow, shell, screen } = require('electron');
 const path = require('node:path');
 const store = require('./store');
 const { LOG_IPC_CHANNEL, LOG_SOURCE_WINDOW, LOG_SOURCE_APP } = require('./logger');
@@ -19,7 +19,13 @@ function onReset() {
   app.quit();
 }
 
-function onRestart() {
+function onRestart(event) {
+  // Save window bounds before exiting – app.exit(0) bypasses the BrowserWindow
+  // 'close' event, so without this the last position/size would be lost.
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win && store.isInitialised()) {
+    store.saveWindowBounds(win.getBounds());
+  }
   const { app } = require('electron');
   app.relaunch();
   app.exit(0);
@@ -99,6 +105,38 @@ function onStartupProfileSet(_event, id) {
   store.setStartupProfileId(id);
 }
 
+// ── Startup settings handlers ─────────────────────────────────────────────────
+
+async function onStartupSettingsGet() {
+  return store.getStartupSettings();
+}
+
+function onStartupSettingsSet(_event, settings) {
+  store.setStartupSettings(settings);
+}
+
+/**
+ * Returns a simplified list of all connected displays for the config UI.
+ * Electron's display objects are not fully serialisable, so we map to a plain array.
+ */
+async function onDisplaysGet() {
+  const displays = screen.getAllDisplays();
+  const primary = screen.getPrimaryDisplay();
+  return displays.map((d, i) => ({
+    index: i,
+    id: d.id,
+    isPrimary: d.id === primary.id,
+    label:
+      d.id === primary.id
+        ? `Primary (${d.size.width}×${d.size.height})`
+        : `Display ${i + 1} (${d.size.width}×${d.size.height})`,
+    width: d.size.width,
+    height: d.size.height,
+    x: d.bounds.x,
+    y: d.bounds.y,
+  }));
+}
+
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
@@ -173,6 +211,7 @@ function registerIpcHandlers(getLogger) {
   ipcMain.on('profilesSave', onProfilesSave);
   ipcMain.on('activeProfileSet', onActiveProfileSet);
   ipcMain.on('startupProfileSet', onStartupProfileSet);
+  ipcMain.on('startupSettingsSet', onStartupSettingsSet);
   ipcMain.on('switchNextProfile', onSwitchNextProfile);
   ipcMain.on('launchProfile', onLaunchProfile);
   ipcMain.on(LOG_IPC_CHANNEL, makeWindowLogHandler(getLogger));
@@ -181,6 +220,8 @@ function registerIpcHandlers(getLogger) {
   ipcMain.handle('profilesLoad', onProfilesLoad);
   ipcMain.handle('activeProfileGet', onActiveProfileGet);
   ipcMain.handle('startupProfileGet', onStartupProfileGet);
+  ipcMain.handle('startupSettingsGet', onStartupSettingsGet);
+  ipcMain.handle('displaysGet', onDisplaysGet);
 }
 
 module.exports = { registerIpcHandlers, registerF11Handler, makeWindowLogHandler };

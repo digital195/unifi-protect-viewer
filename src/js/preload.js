@@ -105,6 +105,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   startupProfileGet: () => ipc.invoke('startupProfileGet'),
   /** Sets the startup profile ID. Pass null to clear. */
   startupProfileSet: (id) => ipc.send('startupProfileSet', id),
+  /** Returns the global startup settings object { profileId, fullscreen, displayIndex }. */
+  startupSettingsGet: () => ipc.invoke('startupSettingsGet'),
+  /** Persists (merges) the global startup settings. */
+  startupSettingsSet: (settings) => ipc.send('startupSettingsSet', settings),
+  /** Returns a list of all connected displays with index, label and bounds. */
+  displaysGet: () => ipc.invoke('displaysGet'),
   /** Cycles to the next profile (F10). */
   switchNextProfile: () => ipc.send('switchNextProfile'),
   /**
@@ -602,7 +608,7 @@ async function applyLiveviewV3() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § Liveview handler – Protect 4.x / 5.x / 6.x  (source: src/js/liveview/v4.js)
+// § Liveview handler – Protect 4.x / 5.x / 6.x / 7.x+  (source: src/js/liveview/v4.js)
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function applyLiveviewV4andNewer() {
@@ -810,9 +816,9 @@ function resolveProtectVersion(doc, profile) {
 
   // ── Step 3: both fail ────────────────────────────────────────────────────
   console.warn(
-    '[upv] resolveProtectVersion: DOM detection failed and no profile fallback set – defaulting to 6.x',
+    '[upv] resolveProtectVersion: DOM detection failed and no profile fallback set – defaulting to 7.x',
   );
-  return '6.x';
+  return '7.x';
 }
 
 /**
