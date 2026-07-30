@@ -68,7 +68,7 @@ jobs:
       - name: Tool Install
         uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Tests
         run: |
