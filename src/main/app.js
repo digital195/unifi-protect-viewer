@@ -19,13 +19,6 @@ app.commandLine.appendSwitch('ignore-certificate-errors', 'true');
 // ── Remove default menu (disables native F11 accelerator and menu bar) ────────
 Menu.setApplicationMenu(null);
 
-// ── Dev: hot-reload ───────────────────────────────────────────────────────────
-try {
-  require('electron-reloader')(module);
-} catch (_) {
-  /* not available in production */
-}
-
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 
 // Logger is created once the app is ready (userData path available then).

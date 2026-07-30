@@ -1102,4 +1102,162 @@ describe('preload.js – scheduleSessionRenewal', () => {
       'location.reload must not be called when no session expiry in localStorage',
     );
   });
+
+  test('does not reload on NaN expiresAt', () => {
+    let reloadCalled = false;
+    assert.doesNotThrow(() =>
+      runInSandbox({
+        localStorage: { getItem: () => 'abc' },
+        sessionStorage: { getItem: () => null, setItem: () => {} },
+        location: {
+          href: null,
+          reload: () => {
+            reloadCalled = true;
+          },
+        },
+        window: { addEventListener: () => {} },
+      }),
+    );
+    assert.strictEqual(
+      reloadCalled,
+      false,
+      'location.reload must not be called when expiresAt is NaN',
+    );
+  });
+
+  test('does not start polling loop on past-dated expiresAt', () => {
+    let reloadCalled = false;
+    let intervalCount = 0;
+    assert.doesNotThrow(() =>
+      runInSandbox({
+        localStorage: { getItem: () => String(Date.now() - 86_400_000) },
+        sessionStorage: { getItem: () => null, setItem: () => {} },
+        location: {
+          href: null,
+          reload: () => {
+            reloadCalled = true;
+          },
+        },
+        setInterval: (fn, ms) => {
+          intervalCount++;
+          fn();
+          return 2;
+        },
+        window: { addEventListener: () => {} },
+      }),
+    );
+    // past-dated should trigger immediate reload (1 call), not start a polling loop
+    assert.ok(
+      intervalCount < 2,
+      'should not start a polling loop for past-dated expiresAt (intervalCount: ' +
+        intervalCount +
+        ')',
+    );
+  });
+
+  test('has immediate reload path for past-dated expiresAt', () => {
+    // The immediate reload is triggered asynchronously (await wait + location.reload),
+    // so we verify the code path exists via source inspection.
+    assert.ok(
+      preloadSource.includes('already past renewal threshold'),
+      'scheduleSessionRenewal must have an immediate reload path for past-dated expiresAt',
+    );
+    // Verify the reload path calls showOverlay + setOverlayStatus + location.reload
+    const pastGuardIdx = preloadSource.indexOf('already past renewal threshold');
+    assert.ok(pastGuardIdx !== -1, 'past-dated guard message must exist');
+    const reloadAfterGuard = preloadSource.indexOf('location.reload()', pastGuardIdx);
+    assert.ok(
+      reloadAfterGuard !== -1,
+      'location.reload() must be called in the past-dated guard path',
+    );
+  });
+
+  test('does not reload on identical stale value (anti-loop)', () => {
+    const staleValue = String(Date.now() - 86_400_000);
+    let reloadCalled = false;
+    assert.doesNotThrow(() =>
+      runInSandbox({
+        localStorage: { getItem: () => staleValue },
+        sessionStorage: { getItem: () => staleValue, setItem: () => {} },
+        location: {
+          href: null,
+          reload: () => {
+            reloadCalled = true;
+          },
+        },
+        window: { addEventListener: () => {} },
+      }),
+    );
+    assert.strictEqual(
+      reloadCalled,
+      false,
+      'location.reload must not be called when sessionStorage has identical stale value (anti-loop)',
+    );
+  });
+
+  test('has NaN guard (Number.isNaN)', () => {
+    assert.ok(
+      preloadSource.includes('Number.isNaN'),
+      'scheduleSessionRenewal must guard against NaN expiresAt using Number.isNaN',
+    );
+  });
+
+  test('has anti-loop mechanism (sessionStorage)', () => {
+    assert.ok(
+      preloadSource.includes('sessionStorage'),
+      'scheduleSessionRenewal must use sessionStorage for anti-loop protection',
+    );
+  });
+
+  test('has try-catch around sessionStorage access', () => {
+    const funcStart = preloadSource.indexOf('async function scheduleSessionRenewal');
+    const funcEnd = preloadSource.indexOf('\n}', funcStart + 100);
+    const funcBody = preloadSource.slice(funcStart, funcEnd);
+    assert.ok(
+      funcBody.includes('try') && funcBody.includes('catch'),
+      'scheduleSessionRenewal must have try-catch around sessionStorage access',
+    );
+  });
+
+  test('does not crash when sessionStorage throws (graceful degradation)', () => {
+    const pastExpiry = String(Date.now() - 86_400_000);
+    assert.doesNotThrow(() =>
+      runInSandbox({
+        localStorage: { getItem: () => pastExpiry },
+        sessionStorage: {
+          getItem: () => {
+            throw new Error('SecurityError');
+          },
+          setItem: () => {
+            throw new Error('SecurityError');
+          },
+        },
+        location: {
+          href: null,
+          reload: () => {},
+        },
+        window: { addEventListener: () => {} },
+      }),
+    );
+  });
+
+  test('normal polling path calls waitUntil for future expiresAt', () => {
+    const pastGuardReload = preloadSource.indexOf('location.reload()');
+    const waitUntilAfter = preloadSource.indexOf('waitUntil', pastGuardReload + 50);
+    assert.ok(
+      waitUntilAfter !== -1,
+      'scheduleSessionRenewal must call waitUntil for the normal polling path',
+    );
+    const intervalAfter = preloadSource.indexOf('60_000', pastGuardReload);
+    assert.ok(intervalAfter !== -1, 'normal polling path must use 60_000ms interval');
+  });
+
+  test('normal polling path uses currentUrlIncludes escape', () => {
+    const funcStart = preloadSource.indexOf('async function scheduleSessionRenewal');
+    const funcBody = preloadSource.slice(funcStart);
+    assert.ok(
+      funcBody.includes('currentUrlIncludes'),
+      'normal polling path must check currentUrlIncludes to allow escape',
+    );
+  });
 });

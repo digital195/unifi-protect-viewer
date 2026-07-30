@@ -836,7 +836,40 @@ async function scheduleSessionRenewal(config) {
   }
 
   const expiresAt = Number(raw);
+  if (Number.isNaN(expiresAt)) {
+    console.warn('[upv] malformed session expiry in localStorage – session renewal disabled');
+    return;
+  }
+
   const renewBeforeMs = 10 * 60 * 1_000; // 10 minutes early
+
+  // Guard against past-dated expiry: if already in the renewal window, do one immediate
+  // reload to get a fresh expiry value, but prevent unbounded loops via sessionStorage.
+  if (Date.now() >= expiresAt - renewBeforeMs) {
+    let staleExpiry;
+    try {
+      staleExpiry = sessionStorage.getItem('portal:staleExpiry');
+    } catch {
+      // sessionStorage unavailable (e.g. private browsing) – skip anti-loop, proceed to reload.
+      console.warn('[upv] sessionStorage unavailable – proceeding without anti-loop guard');
+    }
+    if (staleExpiry === String(expiresAt)) {
+      console.warn('[upv] session expiry value not advancing – session renewal disabled');
+      return;
+    }
+    try {
+      sessionStorage.setItem('portal:staleExpiry', String(expiresAt));
+    } catch {
+      // Best-effort: if setItem fails, proceed anyway – we'll rely on the next reload cycle.
+    }
+    console.log('[upv] session expiry already past renewal threshold – reloading immediately');
+    showOverlay();
+    setOverlayStatus('Session expired\u2026', 'Reconnecting and logging in again');
+    await wait(1_200);
+    location.reload();
+    return;
+  }
+
   const renewAt = new Date(expiresAt - renewBeforeMs);
 
   console.log(

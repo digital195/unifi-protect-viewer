@@ -19,3 +19,6 @@ npm-debug.log*
 
 # Build helpers
 src/build-config.json
+
+# Agent plans
+.agents/plans/
