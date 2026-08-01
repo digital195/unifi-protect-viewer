@@ -138,6 +138,7 @@ describe('preload.js – API surface contract', () => {
       'configSave',
       'displaysGet',
       'launchProfile',
+      'onViewportStatus',
       'openConfig',
       'openDevTools',
       'openExternal',
@@ -152,6 +153,9 @@ describe('preload.js – API surface contract', () => {
       'startupSettingsSet',
       'switchNextProfile',
       'toggleFullscreen',
+      'viewportConfigGet',
+      'viewportConfigSet',
+      'viewportRemove',
     ].sort();
     assert.deepStrictEqual(Object.keys(exposed.electronAPI).sort(), expectedMethods);
   });
@@ -281,6 +285,14 @@ describe('preload.js – IPC send channel contracts', () => {
     assert.strictEqual(sentMessages[baseIdx].args.length, 0);
   });
 
+  test('viewportConfigSet sends on channel "viewportConfigSet" with the settings object', () => {
+    const { exposed, sentMessages, baseIdx } = runPreloadInSandbox();
+    exposed.electronAPI.viewportConfigSet({ enabled: true, name: 'Wall TV' });
+    assert.strictEqual(sentMessages[baseIdx].channel, 'viewportConfigSet');
+    assert.strictEqual(sentMessages[baseIdx].args.length, 1);
+    assert.deepStrictEqual(sentMessages[baseIdx].args[0], { enabled: true, name: 'Wall TV' });
+  });
+
   test('reset sends on channel "reset" with 0 arguments', () => {
     const { exposed, sentMessages, baseIdx } = runPreloadInSandbox();
     exposed.electronAPI.reset();
@@ -324,6 +336,19 @@ describe('preload.js – IPC invoke channel contracts and return-value pass-thro
     const { exposed } = runPreloadInSandbox(undefined);
     const result = await exposed.electronAPI.configLoad();
     assert.strictEqual(result, undefined);
+  });
+
+  test('viewportConfigGet invokes channel "viewportConfigGet" with 0 arguments', async () => {
+    const { exposed, invokedMessages } = runPreloadInSandbox();
+    await exposed.electronAPI.viewportConfigGet();
+    assert.strictEqual(invokedMessages[0].channel, 'viewportConfigGet');
+    assert.strictEqual(invokedMessages[0].args.length, 0);
+  });
+
+  test('viewportConfigGet: return value is passed through from invoke', async () => {
+    const { exposed } = runPreloadInSandbox({ enabled: true, name: 'Wall TV' });
+    const result = await exposed.electronAPI.viewportConfigGet();
+    assert.deepStrictEqual(result, { enabled: true, name: 'Wall TV' });
   });
 
   test('profilesLoad invokes channel "profilesLoad"', async () => {

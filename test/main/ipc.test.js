@@ -19,6 +19,7 @@ const { test, describe, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const { Module } = require('node:module');
 const path = require('node:path');
+const os = require('node:os');
 
 const {
   installElectronMock,
@@ -35,6 +36,12 @@ const {
 
 const MockStore = require('../helpers/mock-store');
 let mockStoreInstance;
+
+// render-session.js is intentionally NOT mocked (it has no Electron/Node I/O
+// dependency, and ipc.js's onConfigLoad must observe the SAME process-memory
+// singleton window.js writes to in real usage) — require the real module and
+// reset it explicitly so no test's override leaks into the next.
+const renderSession = require('../../src/main/render-session');
 
 const storeApi = {
   clearAll: () => mockStoreInstance.clear(),
@@ -71,6 +78,38 @@ const storeApi = {
     });
     mockStoreInstance.set('startupSettings', { ...current, ...settings });
   },
+  getViewportConfig: () =>
+    mockStoreInstance.get('viewport', {
+      enabled: false,
+      name: '',
+      url: '',
+      username: '',
+      password: '',
+      fallbackProfileId: null,
+    }),
+  getViewportConfigRedacted: () => {
+    const v = storeApi.getViewportConfig();
+    return {
+      enabled: v.enabled,
+      name: v.name,
+      url: v.url,
+      username: v.username,
+      fallbackProfileId: v.fallbackProfileId,
+      hasPassword: !!v.password,
+      encryptionAvailable: true,
+      defaultName: 'TESTHOST_VIEWPORT',
+    };
+  },
+  setViewportConfig: (settings) => {
+    // Mirrors store.js semantics enough for pass-through assertions.
+    const { password, passwordChanged, ...rest } = settings || {};
+    const merged = { ...storeApi.getViewportConfig(), ...rest };
+    merged.password = passwordChanged
+      ? `enc(${password || ''})`
+      : storeApi.getViewportConfig().password;
+    mockStoreInstance.set('viewport', merged);
+    return merged;
+  },
   isInitialised: () => mockStoreInstance.has('init'),
   saveWindowBounds: (bounds) => mockStoreInstance.set('bounds', bounds),
   isPortable: false,
@@ -82,6 +121,26 @@ const trayMock = {
     trayUpdateCalls.push(win);
   },
 };
+
+// ── viewportRemove dependency mocks (Task 7) ─────────────────────────────────
+// ipc.js requires these lazily INSIDE onViewportRemove, so intercepting
+// Module._load at handler-call time is the injection seam (same pattern as
+// store/tray above). No network, no real fs.
+
+let adminApiMock; // reassigned per test in the viewportRemove describe
+let identityLoaderMock;
+let fsRmCalls = [];
+const IPC_JS_SUFFIX = path.join('src', 'main', 'ipc.js');
+const fsMock = {
+  ...require('node:fs'),
+  rmSync: (target, opts) => {
+    fsRmCalls.push({ target, opts });
+  },
+};
+// Never exercised (admin-api is fully mocked) — present so the handler's
+// require()s resolve without touching the real modules.
+const mintMock = { httpJson: async () => ({ status: 500, body: '', setCookie: [] }) };
+const tokenMock = { buildLoginRequest: () => ({}) };
 
 const originalLoad = Module._load;
 
@@ -95,6 +154,20 @@ function installMocks() {
     }
     if (request === path.resolve(__dirname, '../../src/main/tray') || request === './tray') {
       return trayMock;
+    }
+    if (request === './viewport/adoption/admin-api') return adminApiMock;
+    if (request === './viewport/adoption/identity') return identityLoaderMock;
+    if (request === './viewport/adoption/mint') return mintMock;
+    if (request === './viewport/adoption/token') return tokenMock;
+    // Only ipc.js gets the fake fs (rmSync recorder) — everything else keeps
+    // the real module.
+    if (
+      request === 'node:fs' &&
+      parent &&
+      parent.filename &&
+      parent.filename.endsWith(IPC_JS_SUFFIX)
+    ) {
+      return fsMock;
     }
     return originalLoad.call(this, request, parent, isMain);
   };
@@ -133,9 +206,10 @@ describe('ipc.js – module boundary contract', () => {
     uninstallElectronMock();
   });
 
-  test('exports exactly { makeWindowLogHandler, registerF11Handler, registerIpcHandlers }', () => {
+  test('exports exactly { currentLogger, makeWindowLogHandler, registerF11Handler, registerIpcHandlers }', () => {
     const mod = requireFreshIpc();
     assert.deepStrictEqual(Object.keys(mod).sort(), [
+      'currentLogger',
       'makeWindowLogHandler',
       'registerF11Handler',
       'registerIpcHandlers',
@@ -192,6 +266,7 @@ describe('ipc.js – registerIpcHandlers registers exact channel set', () => {
       'switchNextProfile',
       'toggleFullscreen',
       'upv:log',
+      'viewportConfigSet',
     ];
     assert.deepStrictEqual(Object.keys(handlers).sort(), expectedOnChannels);
   });
@@ -207,6 +282,8 @@ describe('ipc.js – registerIpcHandlers registers exact channel set', () => {
       'profilesLoad',
       'startupProfileGet',
       'startupSettingsGet',
+      'viewportConfigGet',
+      'viewportRemove',
     ];
     assert.deepStrictEqual(Object.keys(handleHandlers).sort(), expectedHandleChannels);
   });
@@ -260,6 +337,7 @@ describe('ipc.js – handler implementations', () => {
     resetElectronMocks();
     installElectronMock();
     installMocks();
+    renderSession.clear();
     const { registerIpcHandlers } = requireFreshIpc();
     registerIpcHandlers();
     handlers = getIpcMainHandlers();
@@ -270,20 +348,23 @@ describe('ipc.js – handler implementations', () => {
   });
 
   afterEach(() => {
+    renderSession.clear();
     uninstallMocks();
     uninstallElectronMock();
   });
 
   // ── reset ─────────────────────────────────────────────────────────────────
 
-  test('reset: clears store, calls relaunch then quit', () => {
+  test('reset: clears store, calls relaunch then exit', () => {
     let relaunchCalled = false;
-    let quitCalled = false;
+    let exitCalled = false;
     app.relaunch = () => {
       relaunchCalled = true;
     };
-    app.quit = () => {
-      quitCalled = true;
+    // reset uses app.exit(0) (not quit) so the relaunched instance can acquire
+    // the single-instance lock promptly — see onReset comment.
+    app.exit = () => {
+      exitCalled = true;
     };
 
     mockStoreInstance._seed({ profiles: [{ id: 'x' }], init: true });
@@ -291,22 +372,22 @@ describe('ipc.js – handler implementations', () => {
 
     assert.strictEqual(mockStoreInstance._dump().profiles, undefined);
     assert.strictEqual(relaunchCalled, true);
-    assert.strictEqual(quitCalled, true);
+    assert.strictEqual(exitCalled, true);
   });
 
-  test('reset: relaunch is called before quit', () => {
+  test('reset: relaunch is called before exit', () => {
     const order = [];
     app.relaunch = () => {
       order.push('relaunch');
     };
-    app.quit = () => {
-      order.push('quit');
+    app.exit = () => {
+      order.push('exit');
     };
     handlers['reset']();
-    assert.deepStrictEqual(order, ['relaunch', 'quit']);
+    assert.deepStrictEqual(order, ['relaunch', 'exit']);
   });
 
-  test('reset: clearAll is called before relaunch (full order: clearAll → relaunch → quit)', () => {
+  test('reset: clearAll is called before relaunch (full order: clearAll → relaunch → exit)', () => {
     const order = [];
     mockStoreInstance._seed({ profiles: [{ id: 'x' }] });
     const origClear = mockStoreInstance.clear.bind(mockStoreInstance);
@@ -317,11 +398,11 @@ describe('ipc.js – handler implementations', () => {
     app.relaunch = () => {
       order.push('relaunch');
     };
-    app.quit = () => {
-      order.push('quit');
+    app.exit = () => {
+      order.push('exit');
     };
     handlers['reset']();
-    assert.deepStrictEqual(order, ['clearAll', 'relaunch', 'quit']);
+    assert.deepStrictEqual(order, ['clearAll', 'relaunch', 'exit']);
   });
 
   test('reset: store is empty after clearAll – no residual state', () => {
@@ -511,6 +592,209 @@ describe('ipc.js – handler implementations', () => {
     assert.strictEqual(result.url, 'https://exact');
     assert.strictEqual(result.username, 'exactUser');
     assert.strictEqual(result.password, 'exactPw');
+  });
+
+  test('configLoad: Viewport mode → returns the DEDICATED connection, not the profile', async () => {
+    mockStoreInstance.set('_config', {
+      url: 'https://profile.local',
+      username: 'pu',
+      password: 'pp',
+    });
+    mockStoreInstance.set('viewport', {
+      enabled: true,
+      name: 'Wall TV',
+      url: 'https://nvr.local',
+      username: 'admin',
+      password: 'hunter2', // mock store returns the decrypted form
+      fallbackProfileId: null,
+    });
+    const result = await handleHandlers['configLoad']();
+    assert.deepEqual(result, {
+      url: 'https://nvr.local',
+      username: 'admin',
+      password: 'hunter2',
+      viewportName: 'Wall TV',
+    });
+  });
+
+  test('configLoad: viewport disabled → active profile (unchanged behavior)', async () => {
+    mockStoreInstance.set('_config', {
+      url: 'https://profile.local',
+      username: 'pu',
+      password: 'pp',
+    });
+    mockStoreInstance.set('viewport', {
+      enabled: false,
+      name: '',
+      url: 'https://nvr.local',
+      username: 'admin',
+      password: 'x',
+      fallbackProfileId: null,
+    });
+    const result = await handleHandlers['configLoad']();
+    assert.deepEqual(result, { url: 'https://profile.local', username: 'pu', password: 'pp' });
+  });
+
+  test('configLoad: viewport enabled WITHOUT url (Phase-1 poller mode) → active profile', async () => {
+    mockStoreInstance.set('_config', {
+      url: 'https://profile.local',
+      username: 'pu',
+      password: 'pp',
+    });
+    mockStoreInstance.set('viewport', {
+      enabled: true,
+      name: 'Wall TV',
+      url: '',
+      username: '',
+      password: '',
+      fallbackProfileId: null,
+    });
+    const result = await handleHandlers['configLoad']();
+    assert.deepEqual(result, { url: 'https://profile.local', username: 'pu', password: 'pp' });
+  });
+
+  // ── configLoad: viewportName (loading-overlay 2c) ──────────────────────────
+  // The "Loading Viewport" overlay (preload.js) keys off this field, which
+  // must appear ONLY on the dedicated-viewport-connection path.
+
+  test('configLoad: Viewport mode → includes viewportName (the configured name)', async () => {
+    mockStoreInstance.set('viewport', {
+      enabled: true,
+      name: 'Wall TV',
+      url: 'https://nvr.local',
+      username: 'admin',
+      password: 'hunter2',
+      fallbackProfileId: null,
+    });
+    const result = await handleHandlers['configLoad']();
+    assert.strictEqual(result.viewportName, 'Wall TV');
+  });
+
+  test('configLoad: Viewport mode with empty name → viewportName falls back to <hostname>_VIEWPORT default', async () => {
+    mockStoreInstance.set('viewport', {
+      enabled: true,
+      name: '',
+      url: 'https://nvr.local',
+      username: 'admin',
+      password: 'hunter2',
+      fallbackProfileId: null,
+    });
+    const result = await handleHandlers['configLoad']();
+    assert.strictEqual(result.viewportName, `${os.hostname().toUpperCase()}_VIEWPORT`);
+  });
+
+  test('configLoad: profile mode (viewport disabled) → NO viewportName key', async () => {
+    mockStoreInstance.set('_config', {
+      url: 'https://profile.local',
+      username: 'pu',
+      password: 'pp',
+    });
+    mockStoreInstance.set('viewport', {
+      enabled: false,
+      name: '',
+      url: '',
+      username: '',
+      password: '',
+      fallbackProfileId: null,
+    });
+    const result = await handleHandlers['configLoad']();
+    assert.ok(!('viewportName' in result), 'profile mode must not carry viewportName');
+  });
+
+  test('configLoad: render-session override (fallback) → NO viewportName key', async () => {
+    mockStoreInstance.set('viewport', {
+      enabled: true,
+      name: 'Wall TV',
+      url: 'https://nvr.local',
+      username: 'admin',
+      password: 'hunter2',
+      fallbackProfileId: 'fb',
+    });
+    renderSession.setRenderCredentialOverride({
+      url: 'https://fallback.local',
+      username: 'fbuser',
+      password: 'fbpass',
+    });
+    const result = await handleHandlers['configLoad']();
+    assert.ok(!('viewportName' in result), 'fallback override must not carry viewportName');
+  });
+
+  // ── configLoad: render-session override (2c fix, I1) ──────────────────────
+  // Simulates what window.js's loadFallbackProfile does on a real fallback:
+  // it never touches the stored viewport config, it only sets the in-memory
+  // override — so these tests seed an "enabled" viewport connection AND set
+  // the override, to prove the override wins.
+
+  test('configLoad: render-session override set → returns the FALLBACK PROFILE, not the viewport connection', async () => {
+    mockStoreInstance.set('viewport', {
+      enabled: true,
+      name: 'Wall TV',
+      url: 'https://nvr.local',
+      username: 'admin',
+      password: 'hunter2',
+      fallbackProfileId: 'fb',
+    });
+    renderSession.setRenderCredentialOverride({
+      url: 'https://fallback.local',
+      username: 'fbuser',
+      password: 'fbpass',
+    });
+    const result = await handleHandlers['configLoad']();
+    assert.deepEqual(result, {
+      url: 'https://fallback.local',
+      username: 'fbuser',
+      password: 'fbpass',
+    });
+  });
+
+  test('configLoad: render-session override set → also wins over profile mode (viewport disabled)', async () => {
+    mockStoreInstance.set('_config', {
+      url: 'https://profile.local',
+      username: 'pu',
+      password: 'pp',
+    });
+    renderSession.setRenderCredentialOverride({
+      url: 'https://fallback.local',
+      username: 'fbuser',
+      password: 'fbpass',
+    });
+    const result = await handleHandlers['configLoad']();
+    assert.deepEqual(result, {
+      url: 'https://fallback.local',
+      username: 'fbuser',
+      password: 'fbpass',
+    });
+  });
+
+  test('configLoad: no override (normal launch) → Viewport mode still returns the dedicated connection unaffected', async () => {
+    mockStoreInstance.set('viewport', {
+      enabled: true,
+      name: 'Wall TV',
+      url: 'https://nvr.local',
+      username: 'admin',
+      password: 'hunter2',
+      fallbackProfileId: null,
+    });
+    // no renderSession.setRenderCredentialOverride() call – default state
+    const result = await handleHandlers['configLoad']();
+    assert.deepEqual(result, {
+      url: 'https://nvr.local',
+      username: 'admin',
+      password: 'hunter2',
+      viewportName: 'Wall TV',
+    });
+  });
+
+  test('configLoad: override cleared → subsequent call falls back through to normal resolution', async () => {
+    mockStoreInstance.set('_config', {
+      url: 'https://profile.local',
+      username: 'pu',
+      password: 'pp',
+    });
+    renderSession.setRenderCredentialOverride({ url: 'https://fallback.local' });
+    renderSession.clear();
+    const result = await handleHandlers['configLoad']();
+    assert.deepEqual(result, { url: 'https://profile.local', username: 'pu', password: 'pp' });
   });
 
   // ── openConfig ───────────────────────────────────────────────────────────
@@ -755,6 +1039,70 @@ describe('ipc.js – handler implementations', () => {
     assert.strictEqual(mockStoreInstance.get('startupProfileId'), true);
   });
 
+  // ── viewportConfigGet / viewportConfigSet (2c: redacted get, encrypting set) ─
+
+  test('viewportConfigGet: returns the REDACTED config — no password key', async () => {
+    mockStoreInstance.set('viewport', {
+      enabled: true,
+      name: 'Wall TV',
+      url: 'https://nvr.local',
+      username: 'admin',
+      password: 'enc(hunter2)',
+      fallbackProfileId: 'p1',
+    });
+    const result = await handleHandlers['viewportConfigGet']();
+    assert.ok(!('password' in result), 'redacted config must not carry the password');
+    assert.deepEqual(result, {
+      enabled: true,
+      name: 'Wall TV',
+      url: 'https://nvr.local',
+      username: 'admin',
+      fallbackProfileId: 'p1',
+      hasPassword: true,
+      encryptionAvailable: true,
+      defaultName: 'TESTHOST_VIEWPORT',
+    });
+  });
+
+  test('viewportConfigGet: default shape when unset (hasPassword false)', async () => {
+    const result = await handleHandlers['viewportConfigGet']();
+    assert.equal(result.enabled, false);
+    assert.equal(result.hasPassword, false);
+    assert.ok(!('password' in result));
+  });
+
+  test('viewportConfigSet: passes the full payload (incl. passwordChanged) to the store', () => {
+    handlers['viewportConfigSet'](
+      {},
+      {
+        enabled: true,
+        name: 'Wall TV',
+        url: 'https://nvr.local',
+        username: 'admin',
+        password: 'hunter2',
+        passwordChanged: true,
+        fallbackProfileId: null,
+      },
+    );
+    const stored = mockStoreInstance.get('viewport');
+    assert.equal(stored.password, 'enc(hunter2)', 'store owns encryption');
+    assert.equal(stored.url, 'https://nvr.local');
+    assert.ok(!('passwordChanged' in stored));
+  });
+
+  test('viewportConfigSet: passwordChanged absent retains the stored password', () => {
+    mockStoreInstance.set('viewport', {
+      enabled: true,
+      name: '',
+      url: '',
+      username: '',
+      password: 'enc(old)',
+      fallbackProfileId: null,
+    });
+    handlers['viewportConfigSet']({}, { enabled: false, name: 'Renamed' });
+    assert.equal(mockStoreInstance.get('viewport').password, 'enc(old)');
+  });
+
   // ── switchNextProfile ─────────────────────────────────────────────────────
 
   test('switchNextProfile: loads profile-select.html when >1 profiles exist', () => {
@@ -912,6 +1260,201 @@ describe('ipc.js – handler implementations', () => {
     mockStoreInstance.set('profiles', [{ id: 'p1', name: 'P1', url: 'u1' }]);
     assert.doesNotThrow(() => handlers['launchProfile'](makeEvent(win), null));
     assert.strictEqual(mockStoreInstance.get('activeProfileId'), undefined);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// viewportRemove CONTRACT (Task 7)
+// Deletes the emulated viewer from Protect, resets the local identity, and
+// disables Viewport mode. A login/reach failure OR a rejected delete (viewer
+// found but non-2xx) must NOT clear the identity (so a retry can still find
+// the device row by MAC). The result payload must never carry the admin
+// password.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ipc.js – viewportRemove', () => {
+  let handleHandlers;
+  let loginCalls;
+  let findCalls;
+  let deleteCalls;
+
+  const VP_CONNECTED = {
+    enabled: true,
+    name: 'Wall TV',
+    url: 'https://nvr.local',
+    username: 'admin',
+    password: 'hunter2', // mock store returns the decrypted form
+    fallbackProfileId: null,
+  };
+
+  beforeEach(() => {
+    mockStoreInstance = new MockStore();
+    resetElectronMocks();
+    installElectronMock();
+    installMocks();
+    fsRmCalls = [];
+    loginCalls = [];
+    findCalls = [];
+    deleteCalls = [];
+    adminApiMock = {
+      login: async (url, username, password, dep) => {
+        loginCalls.push({ url, username, password, dep });
+        return { cookie: 'TOKEN=abc' };
+      },
+      findViewerByMac: async (url, cookie, mac, dep) => {
+        findCalls.push({ url, cookie, mac, dep });
+        return { id: 'viewer-1', mac: 'AABBCCDDEEFF' };
+      },
+      deleteViewer: async (url, cookie, id, dep) => {
+        deleteCalls.push({ url, cookie, id, dep });
+        return true;
+      },
+    };
+    identityLoaderMock = {
+      loadOrCreateIdentity: (dir) => ({
+        cert: 'CERT',
+        key: 'KEY',
+        mac: 'AABBCCDDEEFF',
+        ident: 'uuid-1',
+        _dir: dir,
+      }),
+    };
+    mockStoreInstance.set('viewport', { ...VP_CONNECTED });
+    const { registerIpcHandlers } = requireFreshIpc();
+    registerIpcHandlers();
+    handleHandlers = getIpcMainHandleHandlers();
+  });
+
+  afterEach(() => {
+    uninstallMocks();
+    uninstallElectronMock();
+  });
+
+  test('happy path: logs in with stored creds, deletes the viewer found by identity MAC → {ok:true, removed:true}', async () => {
+    const result = await handleHandlers['viewportRemove']();
+    assert.equal(result.ok, true);
+    assert.equal(result.removed, true);
+    assert.equal(loginCalls.length, 1);
+    assert.equal(loginCalls[0].url, 'https://nvr.local');
+    assert.equal(loginCalls[0].username, 'admin');
+    assert.equal(loginCalls[0].password, 'hunter2', 'login uses the decrypted stored password');
+    assert.equal(findCalls.length, 1);
+    assert.equal(findCalls[0].cookie, 'TOKEN=abc');
+    assert.equal(findCalls[0].mac, 'AABBCCDDEEFF', 'lookup uses the on-disk identity MAC');
+    assert.equal(deleteCalls.length, 1);
+    assert.equal(deleteCalls[0].id, 'viewer-1');
+  });
+
+  test('happy path: clears the identity dir (userData/viewport, recursive+force)', async () => {
+    await handleHandlers['viewportRemove']();
+    assert.equal(fsRmCalls.length, 1);
+    assert.equal(fsRmCalls[0].target, path.join('/mock/userData', 'viewport'));
+    assert.deepEqual(fsRmCalls[0].opts, { recursive: true, force: true });
+  });
+
+  test('happy path: disables viewport mode but RETAINS the stored password ciphertext', async () => {
+    await handleHandlers['viewportRemove']();
+    const stored = mockStoreInstance.get('viewport');
+    assert.equal(stored.enabled, false, 'viewport mode must be disabled');
+    assert.equal(
+      stored.password,
+      'hunter2',
+      'passwordChanged:false must retain the stored ciphertext',
+    );
+    assert.equal(stored.url, 'https://nvr.local', 'connection settings survive for a re-enable');
+    assert.equal(stored.username, 'admin');
+  });
+
+  test('happy path: result carries no secret (no password key, no password value)', async () => {
+    const result = await handleHandlers['viewportRemove']();
+    assert.ok(!('password' in result), 'result must not have a password key');
+    assert.ok(
+      !JSON.stringify(result).includes('hunter2'),
+      'result must not contain the admin password anywhere',
+    );
+  });
+
+  test('viewer not found: still clears identity + disables mode → {ok:true, removed:false}', async () => {
+    adminApiMock.findViewerByMac = async () => null;
+    const result = await handleHandlers['viewportRemove']();
+    assert.equal(result.ok, true);
+    assert.equal(result.removed, false);
+    assert.match(result.message, /no matching device found/i);
+    assert.equal(deleteCalls.length, 0, 'deleteViewer must not be called without a row');
+    assert.equal(fsRmCalls.length, 1, 'identity must still be cleared');
+    assert.equal(mockStoreInstance.get('viewport').enabled, false, 'mode must still be disabled');
+  });
+
+  test('login failure: {ok:false}, identity NOT cleared, mode NOT disabled (retry stays possible)', async () => {
+    adminApiMock.login = async () => {
+      throw new Error('login HTTP 401');
+    };
+    const result = await handleHandlers['viewportRemove']();
+    assert.equal(result.ok, false);
+    assert.match(result.message, /could not reach the console/i);
+    assert.equal(fsRmCalls.length, 0, 'identity must NOT be cleared on login failure');
+    assert.equal(
+      mockStoreInstance.get('viewport').enabled,
+      true,
+      'viewport mode must stay enabled so the user can retry',
+    );
+  });
+
+  test('login failure: result carries no secret', async () => {
+    adminApiMock.login = async () => {
+      throw new Error('connect ECONNREFUSED 192.168.1.10:443');
+    };
+    const result = await handleHandlers['viewportRemove']();
+    assert.equal(result.ok, false);
+    assert.ok(!JSON.stringify(result).includes('hunter2'));
+  });
+
+  test('console unreachable mid-delete (deleteViewer rejects): {ok:false}, identity intact', async () => {
+    adminApiMock.deleteViewer = async () => {
+      throw new Error('socket hang up');
+    };
+    const result = await handleHandlers['viewportRemove']();
+    assert.equal(result.ok, false);
+    assert.equal(fsRmCalls.length, 0);
+    assert.equal(mockStoreInstance.get('viewport').enabled, true);
+  });
+
+  test('viewer found but delete rejected (deleteViewer resolves false): {ok:false}, identity intact, mode stays enabled', async () => {
+    adminApiMock.deleteViewer = async (url, cookie, id, dep) => {
+      deleteCalls.push({ url, cookie, id, dep });
+      return false; // non-2xx that did not throw, e.g. 403/500
+    };
+    const result = await handleHandlers['viewportRemove']();
+    assert.equal(result.ok, false, 'a rejected delete must NOT be reported as success');
+    assert.match(result.message, /refused to delete/i);
+    assert.equal(deleteCalls.length, 1, 'the delete WAS attempted');
+    assert.equal(
+      fsRmCalls.length,
+      0,
+      'identity must NOT be wiped — the row still exists on the console',
+    );
+    assert.equal(
+      mockStoreInstance.get('viewport').enabled,
+      true,
+      'viewport mode must stay enabled so a retry can find the same row by MAC',
+    );
+  });
+
+  test('not configured (missing url/username/password): {ok:false}, nothing touched', async () => {
+    mockStoreInstance.set('viewport', {
+      enabled: false,
+      name: '',
+      url: '',
+      username: '',
+      password: '',
+      fallbackProfileId: null,
+    });
+    const result = await handleHandlers['viewportRemove']();
+    assert.equal(result.ok, false);
+    assert.match(result.message, /not configured/i);
+    assert.equal(loginCalls.length, 0, 'must not attempt a login');
+    assert.equal(fsRmCalls.length, 0);
+    assert.equal(mockStoreInstance.get('viewport').enabled, false);
   });
 });
 

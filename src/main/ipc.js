@@ -7,7 +7,9 @@
 
 const { ipcMain, BrowserWindow, shell, screen } = require('electron');
 const path = require('node:path');
+const os = require('node:os');
 const store = require('./store');
+const renderSession = require('./render-session');
 const { LOG_IPC_CHANNEL, LOG_SOURCE_WINDOW, LOG_SOURCE_APP } = require('./logger');
 
 // ── Handler implementations ───────────────────────────────────────────────────
@@ -16,7 +18,12 @@ function onReset() {
   store.clearAll();
   const { app } = require('electron');
   app.relaunch();
-  app.quit();
+  // exit(0), not quit(): with the single-instance lock, the relaunched instance
+  // must be able to acquire the lock, which requires this process to release it
+  // promptly. app.exit(0) terminates immediately; app.quit() is graceful and can
+  // still hold the lock when the new instance starts (→ reset would just close
+  // the app). Nothing needs a graceful close here — clearAll() already ran.
+  app.exit(0);
 }
 
 function onRestart(event) {
@@ -36,6 +43,28 @@ function onConfigSave(_event, config) {
 }
 
 async function onConfigLoad() {
+  // Render-session override: once window.js
+  // has fallen back from a failed Viewport-mode adoption to a configured
+  // profile, this in-memory override takes priority over everything below —
+  // otherwise the viewport-connection gate stays true (the store's `enabled`
+  // flag is untouched by a fallback) and the render session would keep
+  // authenticating as the viewport connection even though the window has
+  // navigated to the fallback profile.
+  const override = renderSession.getRenderCredentialOverride();
+  if (override) return override;
+
+  // Viewport mode: the render web-session authenticates with the DEDICATED
+  // viewport connection — the preload's auto-login and unexpected-URL redirect
+  // both read this object, so returning the connection here switches the
+  // credential source without any renderer changes.
+  const vp = store.getViewportConfig();
+  if (vp.enabled && vp.url) {
+    // viewportName drives the "Loading Viewport" overlay sub-line (preload.js):
+    // the configured name, or the same `<hostname>_VIEWPORT` default shown as
+    // a placeholder in the settings UI (store.js's defaultViewportName()).
+    const viewportName = vp.name || `${os.hostname().toUpperCase()}_VIEWPORT`;
+    return { url: vp.url, username: vp.username, password: vp.password, viewportName };
+  }
   return store.getConfig();
 }
 
@@ -50,6 +79,11 @@ function onOpenExternal(_event, url) {
 
 // ── getLogger reference (set during registerIpcHandlers) ─────────────────────
 let _getLogger = null;
+
+/** Returns the current logger instance (or null before it is wired up). */
+function currentLogger() {
+  return _getLogger ? _getLogger() : null;
+}
 
 function onOpenLogFile(_event, logPath) {
   const resolvedPath = logPath || (_getLogger && _getLogger() && _getLogger().getLogPath());
@@ -113,6 +147,94 @@ async function onStartupSettingsGet() {
 
 function onStartupSettingsSet(_event, settings) {
   store.setStartupSettings(settings);
+}
+
+// ── Viewport config handlers ──────────────────────────────────────────────────
+
+async function onViewportConfigGet() {
+  // Renderer-safe: never ships the (decrypted or ciphertext) password.
+  return store.getViewportConfigRedacted();
+}
+
+function onViewportConfigSet(_event, settings) {
+  // Pure pass-through: the store owns passwordChanged handling and encryption.
+  store.setViewportConfig(settings);
+}
+
+/**
+ * Removes this viewer from Protect and resets the local device state:
+ * logs in with the stored admin credentials, finds the viewer row by the
+ * on-disk identity MAC, deletes it, then clears the identity dir and disables
+ * Viewport mode. The local reset runs even when no row was found (stale row
+ * already gone) — but NOT on a login/reach failure OR a rejected delete
+ * (non-2xx), so the identity survives for a retry while the device row may
+ * still exist on the console. Wiping the identity while the row remains would
+ * orphan it permanently: the next enable mints a new MAC, and the old row
+ * could never be found by MAC again.
+ *
+ * Secrets: the password is decrypted here in the MAIN process only, passed to
+ * admin-api.login, and never logged or included in the returned payload.
+ *
+ * @returns {Promise<{ok: boolean, removed?: boolean, message: string}>}
+ */
+async function onViewportRemove() {
+  const vp = store.getViewportConfig(); // MAIN-process only: decrypted password
+  if (!vp.url || !vp.username || !vp.password) {
+    return { ok: false, message: 'Viewport not configured' };
+  }
+  const adminApi = require('./viewport/adoption/admin-api');
+  const { httpJson } = require('./viewport/adoption/mint');
+  const { buildLoginRequest } = require('./viewport/adoption/token');
+  const { loadOrCreateIdentity } = require('./viewport/adoption/identity');
+  const { app } = require('electron');
+  const dataDir = path.join(app.getPath('userData'), 'viewport');
+  const dep = { httpJson, dataDir };
+  let removed = false;
+  try {
+    const { cookie } = await adminApi.login(vp.url, vp.username, vp.password, {
+      httpJson,
+      buildLoginRequest,
+      dataDir,
+    });
+    const identity = loadOrCreateIdentity(dataDir);
+    const viewer = await adminApi.findViewerByMac(vp.url, cookie, identity.mac, dep);
+    if (viewer) {
+      removed = await adminApi.deleteViewer(vp.url, cookie, viewer.id, dep);
+      if (!removed) {
+        // Delete rejected (non-2xx, e.g. 403/500): the row is still on the
+        // console, so treat it like a reach-failure — keep the identity and
+        // the enabled flag so a retry can find the same row by MAC.
+        return {
+          ok: false,
+          message:
+            'The console refused to delete the device. Nothing was changed locally — try again.',
+        };
+      }
+    }
+  } catch (e) {
+    // Identity intentionally NOT cleared: the device row may still exist on
+    // the console, and keeping the identity lets a retry find it by MAC.
+    return { ok: false, message: `Could not reach the console: ${e && e.message}` };
+  }
+  // Full local reset regardless of whether a row existed: the identity dir
+  // holds the device cert/key/MAC, so removing it makes the next enable mint
+  // a brand-new device instead of resurrecting the deleted one.
+  try {
+    require('node:fs').rmSync(dataDir, { recursive: true, force: true });
+  } catch {
+    /* best-effort: a locked file must not block disabling viewport mode */
+  }
+  // passwordChanged:false → store.setViewportConfig retains the stored password
+  // ciphertext (store.js), so only `enabled` flips and the connection settings
+  // survive for a later re-enable.
+  store.setViewportConfig({ enabled: false, passwordChanged: false });
+  return {
+    ok: true,
+    removed,
+    message: removed
+      ? 'Viewport removed from Protect.'
+      : 'No matching device found; local identity reset.',
+  };
 }
 
 /**
@@ -212,6 +334,7 @@ function registerIpcHandlers(getLogger) {
   ipcMain.on('activeProfileSet', onActiveProfileSet);
   ipcMain.on('startupProfileSet', onStartupProfileSet);
   ipcMain.on('startupSettingsSet', onStartupSettingsSet);
+  ipcMain.on('viewportConfigSet', onViewportConfigSet);
   ipcMain.on('switchNextProfile', onSwitchNextProfile);
   ipcMain.on('launchProfile', onLaunchProfile);
   ipcMain.on(LOG_IPC_CHANNEL, makeWindowLogHandler(getLogger));
@@ -221,7 +344,9 @@ function registerIpcHandlers(getLogger) {
   ipcMain.handle('activeProfileGet', onActiveProfileGet);
   ipcMain.handle('startupProfileGet', onStartupProfileGet);
   ipcMain.handle('startupSettingsGet', onStartupSettingsGet);
+  ipcMain.handle('viewportConfigGet', onViewportConfigGet);
+  ipcMain.handle('viewportRemove', onViewportRemove);
   ipcMain.handle('displaysGet', onDisplaysGet);
 }
 
-module.exports = { registerIpcHandlers, registerF11Handler, makeWindowLogHandler };
+module.exports = { registerIpcHandlers, registerF11Handler, makeWindowLogHandler, currentLogger };

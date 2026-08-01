@@ -19,6 +19,40 @@ app.commandLine.appendSwitch('ignore-certificate-errors', 'true');
 // ── Remove default menu (disables native F11 accelerator and menu bar) ────────
 Menu.setApplicationMenu(null);
 
+// ── Single-instance lock ───────────────────────────────────────────────────────
+// Without this, launching the app a second time (or a stray double-click while
+// it's already running) spawns a second process sharing the same userData —
+// same viewport device identity/MAC, same upv.log. In Viewport mode each
+// instance runs its own AdoptionClient, so two instances adopt as the SAME MAC
+// and fight each other on the NVR (duplicate "adoption client starting" log
+// lines). requestSingleInstanceLock() must be called synchronously, before
+// app.whenReady(), so a second launch can be detected and turned away before
+// it does any startup work.
+const gotLock = app.requestSingleInstanceLock();
+
+if (!gotLock) {
+  // Another instance already holds the lock – hand off to it and exit
+  // immediately. Do NOT fall through to whenReady(): that would start a
+  // second AdoptionClient/window. This mirrors app.exit(0) semantics closely
+  // enough for a duplicate manual launch (nothing has been set up yet to
+  // clean up), and matches the standard Electron single-instance pattern.
+  app.quit();
+  return;
+}
+
+// This instance holds the lock. A second launch attempt (detected above, in
+// the *other* process) redirects here instead of starting its own window –
+// surface the window we already have instead of silently doing nothing.
+app.on('second-instance', () => {
+  const { BrowserWindow } = require('electron');
+  const win = BrowserWindow.getAllWindows()[0];
+  if (win) {
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+  }
+});
+
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 
 // Logger is created once the app is ready (userData path available then).

@@ -41,7 +41,9 @@
   "author": "Sebastian Loer",
   "license": "MIT",
   "dependencies": {
-    "electron-store": "8.2.0"
+    "electron-store": "8.2.0",
+    "selfsigned": "^2.4.1",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "cross-env": "10.1.0",

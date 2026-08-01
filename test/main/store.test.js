@@ -32,7 +32,23 @@ let buildConfigContent = null; // null = file does not exist
 
 const originalLoad = Module._load;
 
+// ── Fake secure.js ────────────────────────────────────────────────────────────
+// Deterministic, reversible stand-in so viewport tests can assert both the
+// stored (ciphertext) form and the decrypted form without real Electron.
+const fakeSecure = {
+  available: true,
+  encryptSecret: (s) => (s ? 'enc:' + Buffer.from(s, 'utf8').toString('base64') : ''),
+  decryptSecret: (s) => {
+    if (!s) return '';
+    if (s.startsWith('enc:')) return Buffer.from(s.slice(4), 'base64').toString('utf8');
+    if (s.startsWith('plain:')) return s.slice(6);
+    return s;
+  },
+  isSecretEncryptionAvailable: () => fakeSecure.available,
+};
+
 function installMocks() {
+  fakeSecure.available = true;
   mockStoreInstance = new MockStore();
   mockFsExistsSync = (p) => {
     if (p.endsWith('build-config.json')) return buildConfigContent !== null;
@@ -52,6 +68,7 @@ function installMocks() {
         }
       };
     }
+    if (request === './secure') return fakeSecure;
     if (request === 'node:fs') {
       return {
         existsSync: mockFsExistsSync,
@@ -101,6 +118,8 @@ describe('store.js – module boundary contract', () => {
       'getProfiles',
       'getStartupProfileId',
       'getStartupSettings',
+      'getViewportConfig',
+      'getViewportConfigRedacted',
       'getWindowBounds',
       'hasConfig',
       'isInitialised',
@@ -112,6 +131,7 @@ describe('store.js – module boundary contract', () => {
       'setActiveProfileId',
       'setStartupProfileId',
       'setStartupSettings',
+      'setViewportConfig',
     ].sort();
     assert.deepStrictEqual(Object.keys(store).sort(), expectedExports);
   });
@@ -829,5 +849,162 @@ describe('store.js – getStartupSettings / setStartupSettings', () => {
   test('displayIndex defaults to 0', () => {
     const store = requireFreshStore();
     assert.strictEqual(store.getStartupSettings().displayIndex, 0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VIEWPORT CONFIG
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('store.js – viewport config (2c shape)', () => {
+  const DEFAULTS = {
+    enabled: false,
+    name: '',
+    url: '',
+    username: '',
+    password: '',
+    fallbackProfileId: null,
+  };
+
+  beforeEach(() => {
+    buildConfigContent = null;
+    delete process.env.UPV_PORTABLE;
+    installMocks();
+  });
+  afterEach(() => {
+    uninstallMocks();
+    delete require.cache[require.resolve('../../src/main/store')];
+  });
+
+  test('getViewportConfig returns the full default shape when unset', () => {
+    const store = requireFreshStore();
+    assert.deepStrictEqual(store.getViewportConfig(), DEFAULTS);
+  });
+
+  test('setViewportConfig merges partial over existing (Phase-1 callers unaffected)', () => {
+    const store = requireFreshStore();
+    store.setViewportConfig({ enabled: true, name: 'Wall TV' });
+    store.setViewportConfig({ enabled: false });
+    assert.deepStrictEqual(store.getViewportConfig(), {
+      ...DEFAULTS,
+      enabled: false,
+      name: 'Wall TV',
+    });
+  });
+
+  test('setViewportConfig with passwordChanged:true encrypts; getViewportConfig decrypts', () => {
+    const store = requireFreshStore();
+    store.setViewportConfig({
+      enabled: true,
+      url: 'https://nvr.local',
+      username: 'admin',
+      password: 'hunter2',
+      passwordChanged: true,
+    });
+    const raw = mockStoreInstance.get('viewport');
+    assert.ok(raw.password.startsWith('enc:'), 'must persist ciphertext, not plaintext');
+    assert.ok(!('passwordChanged' in raw), 'passwordChanged flag must not be persisted');
+    assert.equal(store.getViewportConfig().password, 'hunter2');
+  });
+
+  test('setViewportConfig with passwordChanged falsy RETAINS the stored ciphertext', () => {
+    const store = requireFreshStore();
+    store.setViewportConfig({ password: 'hunter2', passwordChanged: true });
+    const cipherBefore = mockStoreInstance.get('viewport').password;
+    store.setViewportConfig({ url: 'https://nvr2.local', password: 'IGNORED' }); // no flag
+    assert.equal(mockStoreInstance.get('viewport').password, cipherBefore);
+    assert.equal(mockStoreInstance.get('viewport').url, 'https://nvr2.local');
+  });
+
+  test('setViewportConfig passwordChanged:true with empty password clears it', () => {
+    const store = requireFreshStore();
+    store.setViewportConfig({ password: 'hunter2', passwordChanged: true });
+    store.setViewportConfig({ password: '', passwordChanged: true });
+    assert.equal(mockStoreInstance.get('viewport').password, '');
+  });
+
+  test('getViewportConfigRedacted never exposes a password key', () => {
+    const store = requireFreshStore();
+    store.setViewportConfig({
+      enabled: true,
+      name: 'Wall TV',
+      url: 'https://nvr.local',
+      username: 'admin',
+      password: 'hunter2',
+      passwordChanged: true,
+      fallbackProfileId: 'p1',
+    });
+    const red = store.getViewportConfigRedacted();
+    assert.ok(!('password' in red), 'redacted config must not carry the password');
+    assert.equal(red.hasPassword, true);
+    assert.equal(red.enabled, true);
+    assert.equal(red.name, 'Wall TV');
+    assert.equal(red.url, 'https://nvr.local');
+    assert.equal(red.username, 'admin');
+    assert.equal(red.fallbackProfileId, 'p1');
+    assert.equal(red.encryptionAvailable, true);
+    assert.equal(red.defaultName, `${require('node:os').hostname().toUpperCase()}_VIEWPORT`);
+  });
+
+  test('getViewportConfigRedacted: hasPassword=false and encryptionAvailable=false surfaces', () => {
+    fakeSecure.available = false;
+    const store = requireFreshStore();
+    const red = store.getViewportConfigRedacted();
+    assert.equal(red.hasPassword, false);
+    assert.equal(red.encryptionAvailable, false);
+  });
+
+  test('legacy migration: adopt/adoptUser/adoptPass → new shape, keys dropped, url backfilled', () => {
+    mockStoreInstance.set('profiles', [
+      { id: 'p1', name: 'P1', url: 'https://nvr.local/protect', username: 'u', password: 'pw' },
+    ]);
+    mockStoreInstance.set('activeProfileId', 'p1');
+    mockStoreInstance.set('viewport', {
+      enabled: true,
+      adopt: true,
+      name: 'CWD Viewport',
+      adoptUser: 'admin',
+      adoptPass: 'onetime',
+    });
+    const store = requireFreshStore();
+    const vp = store.getViewportConfig();
+    assert.deepStrictEqual(vp, {
+      enabled: true,
+      name: 'CWD Viewport',
+      url: 'https://nvr.local/protect', // legacy adopt rode the active profile URL
+      username: 'admin',
+      password: 'onetime', // decrypted on read
+      fallbackProfileId: null,
+    });
+    const raw = mockStoreInstance.get('viewport');
+    assert.ok(raw.password.startsWith('enc:'), 'migrated adoptPass must be encrypted at rest');
+    for (const k of ['adopt', 'adoptUser', 'adoptPass']) {
+      assert.ok(!(k in raw), `legacy key ${k} must be dropped`);
+    }
+  });
+
+  test('legacy migration: adopt:false (poller-era config) migrates without a url', () => {
+    mockStoreInstance.set('viewport', { enabled: true, adopt: false, name: 'Wall TV' });
+    const store = requireFreshStore();
+    assert.deepStrictEqual(store.getViewportConfig(), {
+      ...DEFAULTS,
+      enabled: true,
+      name: 'Wall TV',
+    });
+  });
+
+  test('migration is idempotent (second read does not re-write)', () => {
+    mockStoreInstance.set('viewport', {
+      enabled: true,
+      adopt: true,
+      name: 'V',
+      adoptUser: 'a',
+      adoptPass: 'p',
+    });
+    const store = requireFreshStore();
+    store.getViewportConfig();
+    const after = mockStoreInstance.get('viewport');
+    store.getViewportConfig();
+    assert.deepStrictEqual(mockStoreInstance.get('viewport'), after);
   });
 });

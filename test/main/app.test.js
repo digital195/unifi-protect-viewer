@@ -18,6 +18,10 @@
  *  - window-all-closed quits on non-darwin, stays on darwin
  *  - activate creates a new window only when none exist
  *  - app.js exports nothing (no public API)
+ *  - single-instance lock: a duplicate launch quits immediately without
+ *    running whenReady startup (no second AdoptionClient/window)
+ *  - single-instance lock: the holder registers a second-instance handler
+ *    that surfaces (restores/shows/focuses) its existing window
  */
 
 const { test, describe, beforeEach, afterEach } = require('node:test');
@@ -336,5 +340,130 @@ describe('app.js – activate (macOS re-open)', () => {
       countAfterStart,
       'createMainWindow must not be called when a window already exists',
     );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SINGLE-INSTANCE LOCK CONTRACT
+// ─────────────────────────────────────────────────────────────────────────────
+// Viewport mode: two concurrent instances would each run their own
+// AdoptionClient and adopt as the SAME MAC (derived from the shared userData
+// dir), fighting each other on the NVR. requestSingleInstanceLock() must gate
+// startup so a duplicate launch never reaches whenReady().
+
+describe('app.js – single-instance lock', () => {
+  beforeEach(() => {
+    registerIpcHandlersCalled = false;
+    createMainWindowCalled = false;
+    createMainWindowCount = 0;
+    callOrder = [];
+    resetElectronMocks();
+    installElectronMock();
+    installMocks();
+  });
+
+  afterEach(() => {
+    uninstallMocks();
+    uninstallElectronMock();
+    delete require.cache[require.resolve('../../src/main/app')];
+  });
+
+  test('requestSingleInstanceLock is called exactly once, synchronously at require-time', () => {
+    let callCount = 0;
+    app.requestSingleInstanceLock = () => {
+      callCount++;
+      return true;
+    };
+    requireFreshApp();
+    // No await/tick needed – must happen before whenReady, i.e. during require().
+    assert.strictEqual(callCount, 1);
+  });
+
+  test('lock NOT acquired: app.quit is called', () => {
+    app.requestSingleInstanceLock = () => false;
+    let quitCalled = false;
+    app.quit = () => {
+      quitCalled = true;
+    };
+    requireFreshApp();
+    assert.strictEqual(quitCalled, true, 'a duplicate launch must call app.quit()');
+  });
+
+  test('lock NOT acquired: whenReady startup never runs (no second AdoptionClient/window)', async () => {
+    app.requestSingleInstanceLock = () => false;
+    app.quit = () => {};
+    requireFreshApp();
+    await new Promise((r) => setImmediate(r));
+    assert.strictEqual(
+      registerIpcHandlersCalled,
+      false,
+      'registerIpcHandlers must not run for a duplicate launch',
+    );
+    assert.strictEqual(
+      createMainWindowCalled,
+      false,
+      'createMainWindow must not run for a duplicate launch',
+    );
+  });
+
+  test('lock acquired: whenReady startup still runs normally', async () => {
+    app.requestSingleInstanceLock = () => true;
+    requireFreshApp();
+    await new Promise((r) => setImmediate(r));
+    assert.strictEqual(registerIpcHandlersCalled, true);
+    assert.strictEqual(createMainWindowCalled, true);
+  });
+
+  test('lock acquired: a second-instance handler is registered', () => {
+    app.requestSingleInstanceLock = () => true;
+    requireFreshApp();
+    assert.ok(
+      getAppHandlers()['second-instance'] && getAppHandlers()['second-instance'].length > 0,
+      'a second-instance listener must be registered when this instance holds the lock',
+    );
+  });
+
+  test('second-instance: existing window is shown and focused', async () => {
+    app.requestSingleInstanceLock = () => true;
+    requireFreshApp();
+    await new Promise((r) => setImmediate(r)); // let whenReady create the window
+
+    const win = BrowserWindow.getAllWindows()[0];
+    win.hide();
+    let focusCalled = false;
+    win.focus = () => {
+      focusCalled = true;
+    };
+
+    app.emit('second-instance');
+
+    assert.strictEqual(win.isVisible(), true, 'window must be shown');
+    assert.strictEqual(focusCalled, true, 'window must be focused');
+  });
+
+  test('second-instance: minimized window is restored before being shown', async () => {
+    app.requestSingleInstanceLock = () => true;
+    requireFreshApp();
+    await new Promise((r) => setImmediate(r));
+
+    const win = BrowserWindow.getAllWindows()[0];
+    win._minimized = true;
+    let restoreCalled = false;
+    const originalRestore = win.restore.bind(win);
+    win.restore = () => {
+      restoreCalled = true;
+      originalRestore();
+    };
+
+    app.emit('second-instance');
+
+    assert.strictEqual(restoreCalled, true, 'a minimized window must be restored');
+  });
+
+  test('second-instance: does not throw when no window exists', () => {
+    app.requestSingleInstanceLock = () => true;
+    requireFreshApp();
+    BrowserWindow.getAllWindows = () => [];
+    assert.doesNotThrow(() => app.emit('second-instance'));
   });
 });

@@ -18,7 +18,9 @@
 
 const path = require('node:path');
 const fs = require('node:fs');
+const os = require('node:os');
 const Store = require('electron-store');
+const secure = require('./secure');
 
 // ── Portable detection ────────────────────────────────────────────────────────
 
@@ -155,6 +157,98 @@ function setStartupSettings(settings) {
   }
 }
 
+// ── Viewport mode ──────────────────────────────────────────────────────────────
+
+const VIEWPORT_DEFAULTS = Object.freeze({
+  enabled: false,
+  name: '',
+  url: '',
+  username: '',
+  password: '', // stored form: encryptSecret(...) output ('' = not set)
+  fallbackProfileId: null,
+});
+
+/** Default device name shown as a placeholder and used when name is empty. */
+function defaultViewportName() {
+  return `${os.hostname().toUpperCase()}_VIEWPORT`;
+}
+
+/**
+ * One-time migration of the legacy manual seed keys:
+ *   adoptUser → username, adoptPass → encrypted password, adopt → implied.
+ * Legacy adopt mode had no dedicated URL — it rode the active profile's URL,
+ * so `url` is backfilled from the active profile to preserve adopting behavior.
+ */
+function migrateViewportIfNeeded() {
+  const raw = store.get('viewport');
+  if (!raw) return;
+  if (!('adopt' in raw) && !('adoptUser' in raw) && !('adoptPass' in raw)) return;
+  const migrated = {
+    enabled: !!raw.enabled,
+    name: raw.name || '',
+    url: raw.url || (raw.adopt ? (getActiveProfile() || {}).url || '' : ''),
+    username: raw.username || raw.adoptUser || '',
+    password: raw.password || (raw.adoptPass ? secure.encryptSecret(raw.adoptPass) : ''),
+    fallbackProfileId: raw.fallbackProfileId ?? null,
+  };
+  store.set('viewport', migrated);
+}
+
+/** Stored (ciphertext) form, defaults merged. Internal. */
+function getStoredViewport() {
+  migrateViewportIfNeeded();
+  return { ...VIEWPORT_DEFAULTS, ...store.get('viewport', {}) };
+}
+
+/**
+ * MAIN-PROCESS ONLY: returns the viewport config with the password DECRYPTED
+ * for launch use (adoption + render auto-login). Never ship this to a renderer
+ * settings surface — use getViewportConfigRedacted() there.
+ * @returns {{ enabled:boolean, name:string, url:string, username:string,
+ *             password:string, fallbackProfileId:string|null }}
+ */
+function getViewportConfig() {
+  const stored = getStoredViewport();
+  return { ...stored, password: secure.decryptSecret(stored.password) };
+}
+
+/**
+ * Renderer-safe view of the viewport config: everything EXCEPT the password,
+ * plus hasPassword / encryptionAvailable / defaultName for the settings card.
+ */
+function getViewportConfigRedacted() {
+  const stored = getStoredViewport();
+  return {
+    enabled: stored.enabled,
+    name: stored.name,
+    url: stored.url,
+    username: stored.username,
+    fallbackProfileId: stored.fallbackProfileId,
+    hasPassword: !!stored.password,
+    encryptionAvailable: secure.isSecretEncryptionAvailable(),
+    defaultName: defaultViewportName(),
+  };
+}
+
+/**
+ * Merges and persists the viewport config. Password handling mirrors the
+ * profile form's "unchanged" pattern (config.html:1747): only when
+ * `settings.passwordChanged === true` is the incoming password (re-)encrypted;
+ * otherwise the stored ciphertext is retained and any incoming value ignored.
+ * @param {{ enabled?:boolean, name?:string, url?:string, username?:string,
+ *           password?:string, passwordChanged?:boolean,
+ *           fallbackProfileId?:string|null }} settings
+ * @returns {object} the merged stored-form (ciphertext) config
+ */
+function setViewportConfig(settings) {
+  const stored = getStoredViewport();
+  const { password, passwordChanged, ...rest } = settings || {};
+  const merged = { ...stored, ...rest };
+  merged.password = passwordChanged ? secure.encryptSecret(password || '') : stored.password;
+  store.set('viewport', merged);
+  return merged;
+}
+
 /** Returns the active profile object, or undefined. */
 function getActiveProfile() {
   const profiles = getProfiles();
@@ -240,6 +334,9 @@ module.exports = {
   setStartupProfileId,
   getStartupSettings,
   setStartupSettings,
+  getViewportConfig,
+  getViewportConfigRedacted,
+  setViewportConfig,
   getActiveProfile,
   getWindowBounds,
   saveWindowBounds,

@@ -97,4 +97,40 @@ function hideOverlay(reason = 'done') {
   }, 450);
 }
 
+// ── Viewport adoption status → overlay copy ──────────────────────────────────
+// REFERENCE ONLY — the runtime subscription lives inlined in src/js/preload.js
+// (this file is the reviewable source copy; preload.js is what actually runs).
+//
+// In viewport adoption mode, main pushes 'viewportStatus' with
+// 'registering' | 'online-unassigned' | 'reconnecting' | 'assigned' while the
+// UCP device connection walks the adoption flow (see src/main/window.js). All
+// but 'assigned' override the overlay copy; 'assigned' is intentionally
+// ignored — from there the normal liveview automation drives the overlay text.
+//
+// Notes (mirrored from preload.js):
+//  - preload.js subscribes directly on its `ipc` IPC helper: with
+//    contextIsolation, window.electronAPI only exists in the page's main
+//    world, not in the preload's isolated world. The equivalent bridge
+//    binding (electronAPI.onViewportStatus) is exposed for main-world pages.
+//  - setOverlayStatus() safely no-ops until showOverlay() has created the
+//    overlay, and profile mode never receives the channel → inert there.
+//  - A reconnect may re-send 'online-unassigned' after 'assigned'; page
+//    navigation resets the overlay, so plain text updates are all we need.
+//
+// Wrapped in a function here (unlike the inlined top-level statement in
+// preload.js) so this reference file stays free of undeclared globals.
+// @param {{ on:(channel:string, listener:Function)=>void }} ipc – preload's IPC helper
+function bindViewportStatusToOverlay(ipc) {
+  ipc.on('viewportStatus', (_event, state) => {
+    if (state === 'registering') {
+      setOverlayStatus('Registering Viewport…', 'Contacting your Protect console');
+    } else if (state === 'online-unassigned') {
+      setOverlayStatus('Viewport online', 'Assign a Live View to it in Protect → Devices');
+    } else if (state === 'reconnecting') {
+      setOverlayStatus('Viewport offline', 'Reconnecting to your console…');
+    }
+    // 'assigned' → the normal liveview loading flow drives the text.
+  });
+}
+
 // (no module.exports – this file is a reference copy, not a runtime module)
