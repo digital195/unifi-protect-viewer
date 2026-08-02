@@ -8,8 +8,14 @@
  */
 
 /**
- * Fills in the username and password fields and submits the login form.
- * Waits until the login button is available in the DOM before proceeding.
+ * Fills in the username and password fields, ticks "Remember Me" (for a
+ * long-lived 30-day session instead of Unifi's default 2h session), and
+ * submits the login form. Waits until the login button is available in the
+ * DOM before proceeding.
+ *
+ * The "Remember Me" checkbox is optional: Unifi OS removed it for a while
+ * and only recent releases (Unifi OS 5.1.21+) render it again, so it may be
+ * absent on some hosts – this is handled gracefully (see GitHub issue #17).
  *
  * @param {{ username: string, password: string }} credentials
  * @returns {Promise<void>}
@@ -20,6 +26,14 @@ async function performLogin(credentials) {
 
   setReactInputValue(document.getElementsByName('username')[0], credentials.username);
   setReactInputValue(document.getElementsByName('password')[0], credentials.password);
+
+  // Tick "Remember Me" if the checkbox is present and not already checked
+  const rememberMe =
+    document.getElementsByName('rememberMe')[0] ||
+    document.querySelector('#rememberMe, input[type="checkbox"]');
+  if (rememberMe && !rememberMe.checked) {
+    simulateClick(rememberMe);
+  }
 
   // Submit by clicking the first (submit) button
   simulateClick(document.getElementsByTagName('button')[0]);

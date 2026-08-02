@@ -610,6 +610,82 @@ describe('preload.js login – performLogin selector contracts', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// § LOGIN – performLogin "Remember Me" checkbox contracts (GitHub issue #17)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('preload.js login – performLogin "Remember Me" checkbox contracts', () => {
+  test('looks up the checkbox via getElementsByName("rememberMe")[0]', () => {
+    assert.ok(
+      preloadSource.includes("document.getElementsByName('rememberMe')[0]"),
+      'performLogin must look up the checkbox via getElementsByName("rememberMe")[0]',
+    );
+  });
+
+  test('falls back to querySelector("#rememberMe, input[type=\\"checkbox\\"]") when absent', () => {
+    assert.ok(
+      preloadSource.includes('document.querySelector(\'#rememberMe, input[type="checkbox"]\')'),
+      'performLogin must fall back to querySelector(\'#rememberMe, input[type="checkbox"]\')',
+    );
+  });
+
+  test('clicks the checkbox via simulateClick(rememberMe) (not direct .click())', () => {
+    assert.ok(
+      preloadSource.includes('simulateClick(rememberMe)'),
+      'performLogin must use simulateClick(rememberMe) to tick the checkbox',
+    );
+  });
+
+  test('checks rememberMe.checked before clicking (skip if already ticked)', () => {
+    assert.ok(
+      preloadSource.includes('rememberMe.checked'),
+      'performLogin must check rememberMe.checked before clicking',
+    );
+  });
+
+  test('logs a message when no "Remember Me" checkbox is found (optional checkbox)', () => {
+    assert.ok(
+      preloadSource.includes('no "Remember Me" checkbox found'),
+      'performLogin must log when the optional "Remember Me" checkbox is absent',
+    );
+  });
+
+  test('does not throw when getElementsByName/querySelector both return nothing', () => {
+    assert.doesNotThrow(() =>
+      runInSandbox({
+        document: {
+          URL: 'https://cam.local/login',
+          getElementById: () => null,
+          createElement: () => makeEl('div'),
+          getElementsByTagName: () => [makeEl('button')],
+          getElementsByClassName: () => ({ length: 0 }),
+          getElementsByName: () => [undefined],
+          querySelectorAll: () => makeNodeList([]),
+          querySelector: () => null,
+          head: { appendChild: () => {} },
+          body: { appendChild: () => {}, style: {}, insertAdjacentHTML: () => {} },
+        },
+        window: { addEventListener: () => {} },
+      }),
+    );
+  });
+
+  test('"Remember Me" checkbox handling happens before the submit button click', () => {
+    // The checkbox lookup/click must occur before the final submit button click
+    // so that the checkbox state is applied prior to form submission.
+    const rememberMeIdx = preloadSource.indexOf("document.getElementsByName('rememberMe')[0]");
+    const submitClickIdx = preloadSource.indexOf(
+      "simulateClick(document.getElementsByTagName('button')[0])",
+    );
+    assert.ok(rememberMeIdx !== -1, 'rememberMe lookup must exist');
+    assert.ok(submitClickIdx !== -1, 'submit button click must exist');
+    assert.ok(
+      rememberMeIdx < submitClickIdx,
+      '"Remember Me" checkbox handling must occur before the submit button click',
+    );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // § DARK THEME – activateDarkTheme selector contracts
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1258,6 +1334,19 @@ describe('preload.js – scheduleSessionRenewal', () => {
     assert.ok(
       funcBody.includes('currentUrlIncludes'),
       'normal polling path must check currentUrlIncludes to allow escape',
+    );
+  });
+});
+
+describe('preload.js – installConsoleLogOverride', () => {
+  test('also overrides console.warn for IPC forwarding', () => {
+    assert.ok(
+      preloadSource.includes('console.warn = function'),
+      'preload must override console.warn for IPC forwarding',
+    );
+    assert.ok(
+      preloadSource.includes('_originalConsoleWarn'),
+      'preload must preserve original console.warn',
     );
   });
 });
