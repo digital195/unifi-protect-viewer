@@ -2317,6 +2317,9 @@
           vpRemoveArmed = false;
         }
         refreshViewportNameModelWarn();
+        // Report whether Viewport mode is enabled so the caller can decide which
+        // tab to land on (viewport-mode users should open straight to Viewport).
+        return vpForm.enabled;
       }
 
       async function refreshDisplayDropdown(selectedIndex) {
@@ -2408,7 +2411,14 @@
           renderProfileList();
           loadProfileIntoForm(activeProfileId);
           await loadStartupTab();
-          await loadViewportTab();
+          const viewportEnabled = await loadViewportTab();
+
+          // When this window is running as a Viewport, open the settings straight
+          // to the Viewport tab — that's the context the user came to manage.
+          // Otherwise keep the default Connection tab (already active in markup).
+          if (viewportEnabled) {
+            showTab('viewport');
+          }
 
           // Show "← Profile Selection" nav link when multiple profiles are configured
           if (profiles.length > 1) {
