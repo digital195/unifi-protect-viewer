@@ -1337,3 +1337,16 @@ describe('preload.js – scheduleSessionRenewal', () => {
     );
   });
 });
+
+describe('preload.js – installConsoleLogOverride', () => {
+  test('also overrides console.warn for IPC forwarding', () => {
+    assert.ok(
+      preloadSource.includes('console.warn = function'),
+      'preload must override console.warn for IPC forwarding',
+    );
+    assert.ok(
+      preloadSource.includes('_originalConsoleWarn'),
+      'preload must preserve original console.warn',
+    );
+  });
+});

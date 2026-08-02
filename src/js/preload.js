@@ -36,13 +36,29 @@ const UPV_LOG_IPC_CHANNEL = 'upv:log';
 
 function installConsoleLogOverride() {
   const _originalConsoleLog = console.log;
+  const _originalConsoleWarn = console.warn;
   let _forwarding = false;
 
   console.log = function (...args) {
-    // Always preserve original behaviour (DevTools + stdout)
     _originalConsoleLog.apply(console, args);
 
-    // Forward only own logs, prevent re-entrance
+    if (_forwarding) return;
+    const msg = args.map(String).join(' ');
+    if (!msg.startsWith('[upv')) return;
+
+    _forwarding = true;
+    try {
+      ipcRenderer.send(UPV_LOG_IPC_CHANNEL, msg);
+    } catch (_) {
+      /* swallow – must not crash the preload */
+    } finally {
+      _forwarding = false;
+    }
+  };
+
+  console.warn = function (...args) {
+    _originalConsoleWarn.apply(console, args);
+
     if (_forwarding) return;
     const msg = args.map(String).join(' ');
     if (!msg.startsWith('[upv')) return;
