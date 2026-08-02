@@ -465,6 +465,23 @@ async function performLogin(credentials) {
   console.log('[upv] login form ready – filling credentials');
   setReactInputValue(document.getElementsByName('username')[0], credentials.username);
   setReactInputValue(document.getElementsByName('password')[0], credentials.password);
+
+  // Tick "Remember Me" for a long-lived (30-day) session instead of Unifi's default
+  // 2-hour session (see GitHub issue #17). The checkbox is optional: Unifi OS removed
+  // it for a while and only recent releases (Unifi OS 5.1.21+) render it again, so it
+  // may be absent on some hosts – handle that gracefully instead of failing.
+  const rememberMe =
+    document.getElementsByName('rememberMe')[0] ||
+    document.querySelector('#rememberMe, input[type="checkbox"]');
+  if (!rememberMe) {
+    console.log('[upv] no "Remember Me" checkbox found – falling back to a short session');
+  } else if (rememberMe.checked) {
+    console.log('[upv] "Remember Me" already ticked');
+  } else {
+    console.log('[upv] ticking "Remember Me" for a long-lived session');
+    simulateClick(rememberMe);
+  }
+
   console.log('[upv] clicking submit button');
   simulateClick(document.getElementsByTagName('button')[0]);
 }
@@ -873,7 +890,7 @@ async function scheduleSessionRenewal(config) {
   const renewAt = new Date(expiresAt - renewBeforeMs);
 
   console.log(
-    `[upv] session renewal scheduled – will reload at ${renewAt.toLocaleTimeString()} (10 min before expiry)`,
+    `[upv] session renewal scheduled – will reload at ${renewAt.toLocaleString()} (10 min before expiry)`,
   );
 
   await waitUntil(
