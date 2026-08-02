@@ -195,4 +195,28 @@ describe('viewport-settings.js – buildViewportSetPayload', () => {
     assert.equal(p.passwordChanged, false);
     assert.equal(p.fallbackProfileId, null, 'empty dropdown value maps to null');
   });
+
+  test("adoptionErrorBanner('auth') explains bad admin credentials", () => {
+    const vs = loadModule();
+    const b = vs.adoptionErrorBanner('auth');
+    assert.ok(b, 'auth code must return a banner');
+    assert.match(b.title, /registration failed/i);
+    assert.match(b.detail, /username or password/i);
+    assert.match(b.detail, /Save & Restart/);
+  });
+
+  test("adoptionErrorBanner('failed') is a generic registration failure", () => {
+    const vs = loadModule();
+    const b = vs.adoptionErrorBanner('failed');
+    assert.ok(b, 'failed code must return a banner');
+    assert.match(b.title, /registration failed/i);
+    assert.match(b.detail, /credentials|address/i);
+  });
+
+  test('adoptionErrorBanner returns null for absent/unknown codes', () => {
+    const vs = loadModule();
+    assert.equal(vs.adoptionErrorBanner(''), null);
+    assert.equal(vs.adoptionErrorBanner(undefined), null);
+    assert.equal(vs.adoptionErrorBanner('something-else'), null);
+  });
 });

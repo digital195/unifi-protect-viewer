@@ -254,6 +254,41 @@ describe('window.js – 2c top-level Viewport-mode override', () => {
       win._file && win._file.endsWith('config.html'),
       `expected config.html, got: ${win._file}`,
     );
+    // Non-auth fatal → generic 'failed' reason surfaced to config.html.
+    assert.equal(win._loadFileOpts && win._loadFileOpts.query['vp-error'], 'failed');
+  });
+
+  test('FATAL auth error (bad admin creds) → config.html with vp-error=auth (notify, not silent)', async () => {
+    seedViewport();
+    const { createMainWindow } = requireFreshWindow();
+    const win = await createMainWindow();
+    // mint.js reports bad credentials as `login HTTP 401` (fatal in AdoptionClient).
+    adoptionInstances[0].emit('error', { message: 'login HTTP 401', fatal: true });
+    assert.ok(win._file && win._file.endsWith('config.html'));
+    assert.equal(
+      win._loadFileOpts && win._loadFileOpts.query['vp-error'],
+      'auth',
+      'wrong admin credentials must surface as the auth reason so config.html can explain it',
+    );
+  });
+
+  test('FATAL upgrade rejection (HTTP 403 fingerprint/device rejection) → vp-error=failed, NOT auth', async () => {
+    seedViewport();
+    const { createMainWindow } = requireFreshWindow();
+    const win = await createMainWindow();
+    // connection.js emits this on a ws-upgrade 403 = fingerprint mismatch /
+    // device rejected on the console — NOT a credentials problem, so the user
+    // must NOT be told to re-enter their (correct) password.
+    adoptionInstances[0].emit('error', {
+      message: 'fatal UCP upgrade rejected: HTTP 403',
+      fatal: true,
+    });
+    assert.ok(win._file && win._file.endsWith('config.html'));
+    assert.equal(
+      win._loadFileOpts && win._loadFileOpts.query['vp-error'],
+      'failed',
+      'a device/fingerprint rejection must use the generic reason, not the auth one',
+    );
   });
 
   // ── render-session override (I1 fix) ────────────────────────────────────────

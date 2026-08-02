@@ -80,9 +80,38 @@
     };
   }
 
+  /**
+   * Maps a Viewport-registration failure code (passed to config.html on the
+   * `vp-error` query param when startViewportBridge hits a FATAL adoption error
+   * with no usable fallback) to a human banner. Returns null for an
+   * absent/unknown code so the caller shows nothing.
+   *   'auth'   → the console rejected the admin username/password (401/403)
+   *   'failed' → any other fatal registration failure
+   */
+  function adoptionErrorBanner(code) {
+    if (code === 'auth') {
+      return {
+        title: 'Viewport registration failed',
+        detail:
+          'The console rejected the admin username or password for this Viewport. ' +
+          'Re-enter them below, then Save & Restart.',
+      };
+    }
+    if (code === 'failed') {
+      return {
+        title: 'Viewport registration failed',
+        detail:
+          'This window could not register as a Viewport. Check the NVR address and ' +
+          'admin credentials below, then Save & Restart.',
+      };
+    }
+    return null;
+  }
+
   window.viewportSettings = {
     viewportFormFromConfig,
     validateViewportForm,
     buildViewportSetPayload,
+    adoptionErrorBanner,
   };
 })();

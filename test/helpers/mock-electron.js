@@ -114,8 +114,9 @@ class BrowserWindow {
     return Promise.resolve();
   }
 
-  loadFile(filePath) {
+  loadFile(filePath, opts) {
     this._file = filePath;
+    this._loadFileOpts = opts;
     return Promise.resolve();
   }
 

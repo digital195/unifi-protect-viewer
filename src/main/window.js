@@ -133,6 +133,23 @@ function loadFallbackProfile(win) {
 }
 
 /**
+ * Classifies a FATAL adoption error message into a code config.html turns into a
+ * human banner. Only the mint-stage auth failures — `login HTTP 401/403` and
+ * `manage-payload HTTP 401/403` (mint.js) — mean "wrong admin credentials", so we
+ * anchor to that exact shape. Other fatal errors (notably the connection stage's
+ * `fatal UCP upgrade rejected: HTTP 403`, which is a fingerprint/device rejection
+ * on the console — NOT a credentials problem) fall through to the generic
+ * 'failed' banner so the user isn't told to fix a password that's already correct.
+ * @param {string} message
+ * @returns {'auth'|'failed'}
+ */
+function fatalAdoptionErrorCode(message) {
+  return /\b(?:login|manage-payload) HTTP (?:401|403)\b/.test(String(message || ''))
+    ? 'auth'
+    : 'failed';
+}
+
+/**
  * Starts Viewport mode for a window if enabled:
  *  - Adoption mode (dedicated `connection.url` set): runs a real UCP
  *    AdoptionClient device connection and navigates the window to the
@@ -229,9 +246,17 @@ function startViewportBridge(win, connection) {
           // NEVER leave the app silently stuck on a dead Protect login page
           // – log clearly and send the user to config so they can recover
           // (fix creds, add a fallback profile, etc).
-          vlog('FATAL adoption error with no usable fallback – surfacing via config page');
+          const code = fatalAdoptionErrorCode(e && e.message);
+          vlog(
+            `FATAL adoption error (${code}) with no usable fallback – surfacing via config page`,
+          );
           if (!win.isDestroyed()) {
-            win.loadFile(path.join(__dirname, '../html/config.html'));
+            // Pass the reason so config.html can NOTIFY the user why the window
+            // bounced back to settings (e.g. wrong admin username/password)
+            // instead of silently reopening the Viewport tab.
+            win.loadFile(path.join(__dirname, '../html/config.html'), {
+              query: { 'vp-error': code },
+            });
           }
         }
       }

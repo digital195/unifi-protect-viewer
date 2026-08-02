@@ -1463,6 +1463,15 @@
           <!-- /panel startup -->
           <!-- TAB: Viewport -->
           <div class="upv-tab-panel" id="panelViewport">
+            <!-- Registration-failure banner (populated on load from the ?vp-error
+                 query when startViewportBridge bounces back here on a fatal
+                 adoption error, e.g. wrong admin username/password). -->
+            <div id="viewport-error-banner" class="upv-msg upv-msg--error" role="alert">
+              <div>
+                <strong id="viewport-error-title"></strong>
+                <div id="viewport-error-detail" style="margin-top: 2px"></div>
+              </div>
+            </div>
             <div class="upv-content-grid">
               <!-- LEFT: Viewport mode card -->
               <div>
@@ -2413,10 +2422,22 @@
           await loadStartupTab();
           const viewportEnabled = await loadViewportTab();
 
-          // When this window is running as a Viewport, open the settings straight
-          // to the Viewport tab — that's the context the user came to manage.
-          // Otherwise keep the default Connection tab (already active in markup).
-          if (viewportEnabled) {
+          // If startViewportBridge bounced us back here on a FATAL adoption error
+          // (e.g. wrong admin username/password), notify the user WHY instead of
+          // silently reopening the Viewport tab. The reason arrives on ?vp-error.
+          const vpError = new URLSearchParams(window.location.search).get('vp-error');
+          const vpBanner = vpError && window.viewportSettings.adoptionErrorBanner(vpError);
+          if (vpBanner) {
+            document.getElementById('viewport-error-title').textContent = vpBanner.title;
+            document.getElementById('viewport-error-detail').textContent = vpBanner.detail;
+            document.getElementById('viewport-error-banner').classList.add('upv-msg--visible');
+          }
+
+          // When this window is running as a Viewport (or bounced back here with a
+          // registration error to explain), open straight to the Viewport tab —
+          // that's the context the user came to manage. Otherwise keep the default
+          // Connection tab (already active in markup).
+          if (viewportEnabled || vpBanner) {
             showTab('viewport');
           }
 
