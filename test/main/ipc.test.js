@@ -284,6 +284,7 @@ describe('ipc.js – registerIpcHandlers registers exact channel set', () => {
       'startupSettingsGet',
       'viewportConfigGet',
       'viewportRemove',
+      'viewportSharedViewsStatus',
     ];
     assert.deepStrictEqual(Object.keys(handleHandlers).sort(), expectedHandleChannels);
   });

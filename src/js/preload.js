@@ -133,6 +133,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   viewportRemove: () => ipc.invoke('viewportRemove'),
   /**
+   * This launch's best-effort "Show Shared Multiviews" auto-enable outcome
+   * ({ ran, ok, reason }), so the Viewport settings can warn if it couldn't run.
+   */
+  viewportSharedViewsStatus: () => ipc.invoke('viewportSharedViewsStatus'),
+  /**
    * Subscribes to viewport adoption-state pushes from main
    * ('registering' | 'online-unassigned' | 'assigned'). Only sent in viewport
    * adoption mode; profile mode never receives this channel.

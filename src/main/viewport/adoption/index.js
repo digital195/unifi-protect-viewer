@@ -27,6 +27,7 @@ class AdoptionClient extends EventEmitter {
     this._conn = null;
     this._adopted = false;
     this._renameDone = false;
+    this._sharedViewsDone = false;
     this._cookie = null;
     this._renameCtx = null;
   }
@@ -78,6 +79,9 @@ class AdoptionClient extends EventEmitter {
         // the trailing catch only guards emit('error') itself throwing when no
         // listener is attached — a rename hiccup must never kill the process.
         this._maybeRename().catch(() => {});
+        // Likewise ensure the account can see shared/public multiviews, so an
+        // assigned shared Live View renders instead of falling back to All Cameras.
+        this._maybeEnsureSharedViews().catch(() => {});
       });
       this._conn.on('closed', () => this.emit('online', false));
       this._conn.on('assignment', (a) => this.emit('assignment', a));
@@ -143,6 +147,33 @@ class AdoptionClient extends EventEmitter {
     } catch (e) {
       // non-fatal: name is cosmetic; next launch retries
       this.emit('error', { message: `rename skipped: ${e && e.message}`, fatal: false });
+    }
+  }
+
+  /**
+   * Best-effort: after the adopt goes online, make sure the account's
+   * "Show Shared Multiviews" flag is on (`admin-api.ensureIncludeGlobal`), so an
+   * assigned SHARED/public multiview renders instead of Protect silently showing
+   * "All Cameras". Reuses the same mint login cookie as _maybeRename — keyless
+   * reconnects (no cookie) skip. Emits `sharedViews` with the outcome for the UI.
+   *
+   * Latches on SUCCESS (`_sharedViewsDone`) so in-session reconnects don't re-hit
+   * the API; a failure retries on the next online / launch. Purely a convenience
+   * for the render session — ANY failure is non-fatal and never touches adoption.
+   */
+  async _maybeEnsureSharedViews() {
+    const ctx = this._renameCtx;
+    if (this._sharedViewsDone || !ctx || !this._cookie) return; // done / keyless reconnect -> skip
+    // Test seams may inject an adminApi predating this method; treat it as a no-op.
+    if (typeof ctx.adminApi.ensureIncludeGlobal !== 'function') return;
+    try {
+      const dep = { httpJson: require('./mint').httpJson, dataDir: ctx.dataDir };
+      const res = await ctx.adminApi.ensureIncludeGlobal(ctx.url, this._cookie, dep);
+      this.emit('sharedViews', res || { ok: false, reason: 'read' });
+      if (res && res.ok) this._sharedViewsDone = true; // failure -> retry next online
+    } catch (e) {
+      // non-fatal: convenience only; next launch retries
+      this.emit('sharedViews', { ok: false, reason: 'exception' });
     }
   }
 

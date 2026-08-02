@@ -17,6 +17,7 @@ const { ViewportBridge } = require('./viewport/bridge');
 const { assignmentTargetUrl } = require('./viewport/assignment');
 const { AdoptionClient } = require('./viewport/adoption');
 const { startNativeViewport } = require('./viewport/native');
+const sharedViewsStatus = require('./viewport/shared-views-status');
 
 /** Diagnostic log helper for viewport mode → routes to upv.log. */
 function vlog(msg) {
@@ -191,6 +192,20 @@ function startViewportBridge(win, connection) {
         .catch((e) => vlog(`navigation failed: ${e.message}`));
     };
     const handle = startNativeViewport({ client, baseUrl: connection.url, navigate, log: vlog });
+
+    // Best-effort "Show Shared Multiviews" enforcement result (from the
+    // AdoptionClient's post-online admin-api call). Recorded so config.html can
+    // warn if it couldn't run; logged for diagnostics. Never affects navigation.
+    client.on('sharedViews', (r) => {
+      sharedViewsStatus.set(r);
+      vlog(
+        r && r.ok
+          ? r.changed
+            ? 'shared multiviews: enabled for the account (was off)'
+            : 'shared multiviews: already enabled'
+          : `shared multiviews: could not verify (${(r && r.reason) || 'unknown'})`,
+      );
+    });
 
     // ── Fallback plumbing: fatal error or no online within the grace
     // window → load the configured fallback profile instead. ──────────────────

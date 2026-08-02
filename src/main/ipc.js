@@ -238,9 +238,19 @@ async function onViewportRemove() {
 }
 
 /**
+ * Returns this launch's best-effort "Show Shared Multiviews" auto-enable outcome
+ * ({ ran, ok, reason }) so the Viewport settings can warn only when it actually
+ * ran and failed. Set by window.js from the AdoptionClient's `sharedViews` event.
+ */
+async function onViewportSharedViewsStatus() {
+  return require('./viewport/shared-views-status').get();
+}
+
+/**
  * Returns a simplified list of all connected displays for the config UI.
  * Electron's display objects are not fully serialisable, so we map to a plain array.
  */
+
 async function onDisplaysGet() {
   const displays = screen.getAllDisplays();
   const primary = screen.getPrimaryDisplay();
@@ -346,6 +356,7 @@ function registerIpcHandlers(getLogger) {
   ipcMain.handle('startupSettingsGet', onStartupSettingsGet);
   ipcMain.handle('viewportConfigGet', onViewportConfigGet);
   ipcMain.handle('viewportRemove', onViewportRemove);
+  ipcMain.handle('viewportSharedViewsStatus', onViewportSharedViewsStatus);
   ipcMain.handle('displaysGet', onDisplaysGet);
 }
 

@@ -1856,6 +1856,25 @@
                     it signs in on its own using an identity stored on this machine. Requires a
                     UniFi OS console running Protect 4.x–7.x+.
                   </p>
+                  <p class="upv-info-card__note">
+                    <strong class="upv-text-primary">Shared multiviews:</strong> Viewport mode keeps
+                    <strong class="upv-text-primary">"Show Shared Multiviews"</strong> enabled on
+                    this account each launch, so a shared/public multiview you assign displays
+                    instead of falling back to
+                    <strong class="upv-text-primary">All Cameras</strong>.
+                  </p>
+                  <!-- Shown only when the per-launch auto-enable actually ran and failed. -->
+                  <div
+                    id="viewport-sharedviews-warn"
+                    class="upv-msg upv-msg--error"
+                    role="alert"
+                    style="margin-top: 8px"
+                  >
+                    <div>
+                      <strong>Couldn't confirm "Show Shared Multiviews" for this account.</strong>
+                      <div id="viewport-sharedviews-warn-detail" style="margin-top: 2px"></div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2326,9 +2345,34 @@
           vpRemoveArmed = false;
         }
         refreshViewportNameModelWarn();
+        await refreshSharedViewsWarning();
         // Report whether Viewport mode is enabled so the caller can decide which
         // tab to land on (viewport-mode users should open straight to Viewport).
         return vpForm.enabled;
+      }
+
+      // Shows a warning only when THIS launch's best-effort "Show Shared
+      // Multiviews" auto-enable actually ran and failed — so a shared multiview
+      // silently showing as All Cameras is explained rather than mysterious.
+      async function refreshSharedViewsWarning() {
+        const warn = document.getElementById('viewport-sharedviews-warn');
+        if (!warn) return;
+        try {
+          const sv = await window.electronAPI.viewportSharedViewsStatus();
+          if (sv && sv.ran && !sv.ok) {
+            document.getElementById('viewport-sharedviews-warn-detail').textContent =
+              sv.reason === 'read'
+                ? 'The app couldn’t read this account’s settings — check the admin username/password or its permissions.'
+                : sv.reason === 'patch'
+                  ? 'The console rejected the change — this account may lack permission to change its own settings.'
+                  : 'Enable “Show Shared Multiviews” in Protect (as this account) if a shared view shows as All Cameras.';
+            warn.classList.add('upv-msg--visible');
+          } else {
+            warn.classList.remove('upv-msg--visible');
+          }
+        } catch (e) {
+          warn.classList.remove('upv-msg--visible'); // status is best-effort
+        }
       }
 
       async function refreshDisplayDropdown(selectedIndex) {

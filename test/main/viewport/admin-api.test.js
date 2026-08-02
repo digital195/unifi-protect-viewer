@@ -112,6 +112,123 @@ test('deleteViewer true on 200 or 204', async () => {
   );
 });
 
+test('getSelf returns the parsed user on 200, null on non-200', async () => {
+  const ok = fakeHttp({
+    'GET https://n/proxy/protect/api/users/self': {
+      status: 200,
+      body: JSON.stringify({ id: 'u1', settings: { web: { 'liveview.includeGlobal': true } } }),
+    },
+  });
+  const u = await api.getSelf('https://n', 'c', { httpJson: ok.httpJson, dataDir: '/d' });
+  assert.equal(u.id, 'u1');
+  const bad = fakeHttp({ 'GET https://n/proxy/protect/api/users/self': { status: 403, body: '' } });
+  assert.equal(
+    await api.getSelf('https://n', 'c', { httpJson: bad.httpJson, dataDir: '/d' }),
+    null,
+  );
+});
+
+test('ensureIncludeGlobal SKIPS the PATCH when the flag is already true', async () => {
+  const { httpJson, calls } = fakeHttp({
+    'GET https://n/proxy/protect/api/users/self': {
+      status: 200,
+      body: JSON.stringify({ id: 'u1', settings: { web: { 'liveview.includeGlobal': true } } }),
+    },
+  });
+  const r = await api.ensureIncludeGlobal('https://n', 'c', { httpJson, dataDir: '/d' });
+  assert.deepEqual(r, { ok: true, changed: false });
+  assert.equal(calls.length, 1, 'must not PATCH when already enabled');
+  assert.equal(calls[0].reqDesc.method || 'GET', 'GET');
+});
+
+test('ensureIncludeGlobal PATCHes when off, sends CSRF, and PRESERVES other settings.web keys', async () => {
+  const jwtCookie = `TOKEN=hdr.${Buffer.from(JSON.stringify({ csrfToken: 'CSRF1' })).toString('base64url')}.sig`;
+  const { httpJson, calls } = fakeHttp({
+    'GET https://n/proxy/protect/api/users/self': {
+      status: 200,
+      body: JSON.stringify({
+        id: 'u1',
+        settings: {
+          web: {
+            'liveview.includeGlobal': false,
+            'liveview.id': 'keep-me',
+            allCamerasLiveview: { id: 'all' },
+          },
+          other: { foo: 1 },
+        },
+      }),
+    },
+    'PATCH https://n/proxy/protect/api/users/self': { status: 200, body: '{}' },
+  });
+  const r = await api.ensureIncludeGlobal('https://n', jwtCookie, { httpJson, dataDir: '/d' });
+  assert.deepEqual(r, { ok: true, changed: true });
+  const patch = calls.find((c) => c.reqDesc.method === 'PATCH');
+  assert.ok(patch, 'must PATCH when the flag is off');
+  assert.equal(patch.reqDesc.headers['x-csrf-token'], 'CSRF1');
+  const sent = JSON.parse(patch.reqDesc.body).settings;
+  assert.equal(sent.web['liveview.includeGlobal'], true, 'flag flipped on');
+  assert.equal(sent.web['liveview.id'], 'keep-me', 'other web keys preserved');
+  assert.deepEqual(sent.web.allCamerasLiveview, { id: 'all' }, 'allCamerasLiveview preserved');
+  assert.deepEqual(sent.other, { foo: 1 }, 'other settings namespaces preserved');
+});
+
+test('ensureIncludeGlobal treats an absent flag as off and enables it', async () => {
+  const { httpJson, calls } = fakeHttp({
+    'GET https://n/proxy/protect/api/users/self': {
+      status: 200,
+      body: JSON.stringify({ id: 'u1', settings: { web: {} } }),
+    },
+    'PATCH https://n/proxy/protect/api/users/self': { status: 200, body: '{}' },
+  });
+  const r = await api.ensureIncludeGlobal('https://n', 'c', { httpJson, dataDir: '/d' });
+  assert.deepEqual(r, { ok: true, changed: true });
+  assert.ok(calls.find((c) => c.reqDesc.method === 'PATCH'));
+});
+
+test('ensureIncludeGlobal returns ok:false reason:read when self is unreadable (no PATCH)', async () => {
+  const { httpJson, calls } = fakeHttp({
+    'GET https://n/proxy/protect/api/users/self': { status: 401, body: '' },
+  });
+  const r = await api.ensureIncludeGlobal('https://n', 'c', { httpJson, dataDir: '/d' });
+  assert.deepEqual(r, { ok: false, changed: false, reason: 'read' });
+  assert.equal(calls.length, 1, 'must not PATCH when self is unreadable');
+});
+
+test('ensureIncludeGlobal handles a user with NO settings object (no wipe, no throw)', async () => {
+  const { httpJson, calls } = fakeHttp({
+    'GET https://n/proxy/protect/api/users/self': {
+      status: 200,
+      body: JSON.stringify({ id: 'u1' }), // settings entirely absent
+    },
+    'PATCH https://n/proxy/protect/api/users/self': { status: 200, body: '{}' },
+  });
+  const r = await api.ensureIncludeGlobal('https://n', 'c', { httpJson, dataDir: '/d' });
+  assert.deepEqual(r, { ok: true, changed: true });
+  const patch = calls.find((c) => c.reqDesc.method === 'PATCH');
+  assert.deepEqual(JSON.parse(patch.reqDesc.body), {
+    settings: { web: { 'liveview.includeGlobal': true } },
+  });
+});
+
+test('getSelf returns null on a 200 with an unparseable body', async () => {
+  const { httpJson } = fakeHttp({
+    'GET https://n/proxy/protect/api/users/self': { status: 200, body: 'not json' },
+  });
+  assert.equal(await api.getSelf('https://n', 'c', { httpJson, dataDir: '/d' }), null);
+});
+
+test('ensureIncludeGlobal returns ok:false reason:patch when the PATCH is rejected', async () => {
+  const { httpJson } = fakeHttp({
+    'GET https://n/proxy/protect/api/users/self': {
+      status: 200,
+      body: JSON.stringify({ settings: { web: { 'liveview.includeGlobal': false } } }),
+    },
+    'PATCH https://n/proxy/protect/api/users/self': { status: 403, body: '' },
+  });
+  const r = await api.ensureIncludeGlobal('https://n', 'c', { httpJson, dataDir: '/d' });
+  assert.deepEqual(r, { ok: false, changed: true, reason: 'patch' });
+});
+
 test('mutations send X-CSRF-Token from the TOKEN cookie JWT; omit it when absent', async () => {
   // UniFi OS carries the csrf token in the JWT TOKEN cookie's payload.
   const jwtCookie = (csrf) =>

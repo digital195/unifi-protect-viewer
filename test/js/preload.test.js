@@ -156,6 +156,7 @@ describe('preload.js – API surface contract', () => {
       'viewportConfigGet',
       'viewportConfigSet',
       'viewportRemove',
+      'viewportSharedViewsStatus',
     ].sort();
     assert.deepStrictEqual(Object.keys(exposed.electronAPI).sort(), expectedMethods);
   });
