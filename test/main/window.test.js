@@ -51,6 +51,7 @@ const storeApi = {
   saveWindowBounds: (b) => mockStoreInstance.set('bounds', b),
   isInitialised: () => mockStoreInstance.has('init'),
   markInitialised: () => mockStoreInstance.set('init', true),
+  getViewportConfig: () => mockStoreInstance.get('viewportConfig', { enabled: false, name: '' }),
 };
 
 const trayMock = {

@@ -5,11 +5,25 @@
  * @description Main browser window creation and lifecycle management.
  */
 
-const { BrowserWindow, screen } = require('electron');
+const { BrowserWindow, screen, app } = require('electron');
 const path = require('node:path');
+const os = require('node:os');
 const store = require('./store');
+const renderSession = require('./render-session');
 const { createTray } = require('./tray');
-const { registerF11Handler } = require('./ipc');
+const { registerF11Handler, currentLogger } = require('./ipc');
+const { LOG_SOURCE_APP } = require('./logger');
+const { ViewportBridge } = require('./viewport/bridge');
+const { assignmentTargetUrl } = require('./viewport/assignment');
+const { AdoptionClient } = require('./viewport/adoption');
+const { startNativeViewport } = require('./viewport/native');
+const sharedViewsStatus = require('./viewport/shared-views-status');
+
+/** Diagnostic log helper for viewport mode → routes to upv.log. */
+function vlog(msg) {
+  const logger = currentLogger();
+  if (logger) logger.log(LOG_SOURCE_APP, `[viewport] ${msg}`);
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -18,6 +32,10 @@ const USER_AGENT =
 const DEFAULT_WIDTH = 1280;
 const DEFAULT_HEIGHT = 760;
 const ICON_PATH = path.join(__dirname, '../img/128.png');
+
+/** Grace window: if a fallback profile is configured and the viewport never
+ * comes online within this window, load the fallback instead. */
+const FALLBACK_GRACE_MS = 60_000;
 
 // ── Display helpers ───────────────────────────────────────────────────────────
 
@@ -45,10 +63,280 @@ function getSortedDisplays() {
   });
 }
 
+// ── Viewport mode ─────────────────────────────────────────────────────────────
+
+/**
+ * Builds a bootstrap fetcher that runs `fetch` inside the logged-in Protect page
+ * (via executeJavaScript), so it uses the page's real authenticated session.
+ * @param {BrowserWindow} win
+ * @param {string} baseUrl - the active profile URL (origin is derived from it)
+ * @returns {() => Promise<object>}
+ */
+function makeBootstrapFetcher(win, baseUrl) {
+  const origin = new URL(baseUrl).origin;
+  // Fetch from the PAGE'S authenticated context. The logged-in Protect SPA holds
+  // the session (JSESSIONID/TOKEN) that the API requires; a main-process
+  // net.request does not carry that auth (it only sees JSESSIONID and gets 401).
+  // executeJavaScript runs in the page, so the browser attaches the page's
+  // cookies exactly as the SPA's own API calls do.
+  const js = `fetch(${JSON.stringify(origin + '/proxy/protect/api/bootstrap')}, { credentials: 'include' })
+    .then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.json(); })`;
+  return function fetchBootstrap() {
+    if (win.isDestroyed() || win.webContents.isDestroyed()) {
+      return Promise.reject(new Error('window destroyed'));
+    }
+    return win.webContents.executeJavaScript(js, true);
+  };
+}
+
+/** userData-based, per-app viewport data dir (identity, key, cert, pins). */
+function viewportDataDir() {
+  return path.join(app.getPath('userData'), 'viewport');
+}
+
+/**
+ * Loads the configured fallback profile when the viewport connection cannot
+ * establish (design: fatal reject / no online within the grace window).
+ * A fallbackProfileId that no longer resolves is treated as "no fallback".
+ * @param {BrowserWindow} win
+ * @returns {boolean} true if a fallback profile was loaded
+ */
+function loadFallbackProfile(win) {
+  const vp = store.getViewportConfig();
+  if (!vp.fallbackProfileId) return false;
+  const profile = store.getProfiles().find((p) => p.id === vp.fallbackProfileId);
+  if (!profile) {
+    vlog(
+      `fallback profile ${vp.fallbackProfileId} no longer exists – staying on viewport connection`,
+    );
+    return false;
+  }
+  vlog(`viewport connection failed – falling back to profile "${profile.name}"`);
+  // Make the render session actually BE the
+  // fallback profile — url AND creds — not just the window's navigation
+  // target. Without this, ipc.js's onConfigLoad keeps returning the viewport
+  // connection (its `enabled`/`url` gate is untouched by a fallback), so
+  // preload.js's unexpected-URL redirect bounces a different-origin fallback
+  // straight back to the viewport, and the auto-login form fills with the
+  // viewport's admin creds instead of the fallback profile's own.
+  renderSession.setRenderCredentialOverride({
+    url: profile.url,
+    username: profile.username,
+    password: profile.password,
+  });
+  store.setActiveProfileId(profile.id);
+  if (!win.isDestroyed()) {
+    win
+      .loadURL(profile.url, { userAgent: USER_AGENT })
+      .catch((e) => vlog(`fallback navigation failed: ${e.message}`));
+  }
+  return true;
+}
+
+/**
+ * Classifies a FATAL adoption error message into a code config.html turns into a
+ * human banner. Only the mint-stage auth failures — `login HTTP 401/403` and
+ * `manage-payload HTTP 401/403` (mint.js) — mean "wrong admin credentials", so we
+ * anchor to that exact shape. Other fatal errors (notably the connection stage's
+ * `fatal UCP upgrade rejected: HTTP 403`, which is a fingerprint/device rejection
+ * on the console — NOT a credentials problem) fall through to the generic
+ * 'failed' banner so the user isn't told to fix a password that's already correct.
+ * @param {string} message
+ * @returns {'auth'|'failed'}
+ */
+function fatalAdoptionErrorCode(message) {
+  return /\b(?:login|manage-payload) HTTP (?:401|403)\b/.test(String(message || ''))
+    ? 'auth'
+    : 'failed';
+}
+
+/**
+ * Starts Viewport mode for a window if enabled:
+ *  - Adoption mode (dedicated `connection.url` set): runs a real UCP
+ *    AdoptionClient device connection and navigates the window to the
+ *    natively-assigned Live View. Adoption state is pushed to the renderer
+ *    overlay via the 'viewportStatus' IPC channel
+ *    ('registering' → 'online-unassigned' → 'assigned', plus 'reconnecting'
+ *    whenever the adoption link drops).
+ *  - Otherwise: falls back to the bootstrap poller (existing behavior,
+ *    no status pushes).
+ * @param {BrowserWindow} win
+ * @param {{ url:string, username?:string, password?:string }} connection - the
+ *   dedicated viewport connection or the active profile (bootstrap-poller path)
+ * @returns {ViewportBridge|{stop:()=>void}|null}
+ */
+function startViewportBridge(win, connection) {
+  const vp = store.getViewportConfig();
+  if (!vp.enabled) return null;
+
+  // ── Adoption mode: native UCP device connection drives navigation ────────────
+  if (vp.url) {
+    const client = new AdoptionClient();
+    const deviceName = vp.name || `${os.hostname().toUpperCase()}_VIEWPORT`;
+    // Push adoption state to the renderer overlay (preload.js listens on
+    // 'viewportStatus'). Guarded so it is a no-op on a destroyed window and on
+    // the main-process test mock, whose webContents has no send()/isDestroyed().
+    const sendStatus = (s) => {
+      if (win.isDestroyed()) return;
+      const wc = win.webContents;
+      if (!wc || typeof wc.send !== 'function') return;
+      if (typeof wc.isDestroyed === 'function' && wc.isDestroyed()) return;
+      wc.send('viewportStatus', s);
+    };
+    const navigate = (target) => {
+      if (win.isDestroyed()) return;
+      vlog(`native assignment → navigating ${target}`);
+      sendStatus('assigned');
+      win
+        .loadURL(target, { userAgent: USER_AGENT })
+        .catch((e) => vlog(`navigation failed: ${e.message}`));
+    };
+    const handle = startNativeViewport({ client, baseUrl: connection.url, navigate, log: vlog });
+
+    // Best-effort "Show Shared Multiviews" enforcement result (from the
+    // AdoptionClient's post-online admin-api call). Recorded so config.html can
+    // warn if it couldn't run; logged for diagnostics. Never affects navigation.
+    client.on('sharedViews', (r) => {
+      sharedViewsStatus.set(r);
+      vlog(
+        r && r.ok
+          ? r.changed
+            ? 'shared multiviews: enabled for the account (was off)'
+            : 'shared multiviews: already enabled'
+          : `shared multiviews: could not verify (${(r && r.reason) || 'unknown'})`,
+      );
+    });
+
+    // ── Fallback plumbing: fatal error or no online within the grace
+    // window → load the configured fallback profile instead. ──────────────────
+    let sawOnline = false;
+    let graceTimer = null;
+    const clearGrace = () => {
+      if (graceTimer) {
+        clearTimeout(graceTimer);
+        graceTimer = null;
+      }
+    };
+    if (vp.fallbackProfileId) {
+      graceTimer = setTimeout(() => {
+        if (!sawOnline) {
+          vlog(`no successful online within ${FALLBACK_GRACE_MS / 1000}s grace window`);
+          if (loadFallbackProfile(win)) handle.stop();
+        }
+      }, FALLBACK_GRACE_MS);
+      // Never let this timer keep the process alive on its own – real app
+      // usage always clears it via 'closed'/'online'/fatal-error, but a test
+      // (or an app-quit race) that never reaches those must not hang on a
+      // dangling 60s handle.
+      if (typeof graceTimer.unref === 'function') graceTimer.unref();
+    }
+
+    client.on('online', (v) => {
+      vlog(v ? 'viewport ONLINE' : 'viewport offline');
+      if (v) {
+        sawOnline = true;
+        clearGrace();
+        sendStatus('online-unassigned');
+      } else {
+        // Adoption link dropped (pre-assignment the overlay is still up) —
+        // don't let it linger on "assign a Live View" while offline. The
+        // client reconnects on its own; a successful reconnect re-sends
+        // 'online-unassigned' above.
+        sendStatus('reconnecting');
+      }
+    });
+    client.on('error', (e) => {
+      // Only a STRICT `=== true` is fatal; `undefined`/`false` are transient and
+      // the underlying connection already retries/reconnects on its own.
+      const fatal = e && e.fatal === true;
+      vlog(`adoption error${fatal ? ' (FATAL)' : ''}: ${e && e.message}`);
+      if (fatal) {
+        // Unrecoverable (e.g. rejected fingerprint, bad admin creds) – tear
+        // down, then try the configured fallback profile (no-op when none /
+        // stale).
+        handle.stop();
+        clearGrace();
+        if (!loadFallbackProfile(win)) {
+          // A fatal error with no usable fallback must
+          // NEVER leave the app silently stuck on a dead Protect login page
+          // – log clearly and send the user to config so they can recover
+          // (fix creds, add a fallback profile, etc).
+          const code = fatalAdoptionErrorCode(e && e.message);
+          vlog(
+            `FATAL adoption error (${code}) with no usable fallback – surfacing via config page`,
+          );
+          if (!win.isDestroyed()) {
+            // Pass the reason so config.html can NOTIFY the user why the window
+            // bounced back to settings (e.g. wrong admin username/password)
+            // instead of silently reopening the Viewport tab.
+            win.loadFile(path.join(__dirname, '../html/config.html'), {
+              query: { 'vp-error': code },
+            });
+          }
+        }
+      }
+    });
+    vlog(`adoption client starting for "${deviceName}" (dataDir ${viewportDataDir()})`);
+    sendStatus('registering');
+    // The dedicated connection's admin creds drive the one-time adopt; a
+    // pre-adopted viewer reconnects keyless via its pinned cert (creds then
+    // only serve the render auto-login, via ipc.js configLoad).
+    client.start({
+      url: connection.url,
+      username: connection.username || undefined,
+      password: connection.password || undefined,
+      deviceName,
+      dataDir: viewportDataDir(),
+    });
+    win.on('closed', () => {
+      clearGrace();
+      handle.stop();
+    });
+    return handle;
+  }
+
+  // ── Fallback: bootstrap poller (non-adoption) ─────────────────────────────────
+  if (!vp.name) return null;
+  const bridge = new ViewportBridge({
+    name: vp.name,
+    fetchBootstrap: makeBootstrapFetcher(win, connection.url),
+  });
+  let currentTarget = null;
+  let lastOk;
+  vlog(`bridge starting for "${vp.name}" (origin ${new URL(connection.url).origin})`);
+  bridge.on('status', (s) => {
+    // Log only on connected/disconnected transitions to keep the log readable.
+    if (s.ok !== lastOk) {
+      lastOk = s.ok;
+      vlog(s.ok ? 'connected to Protect (bootstrap ok)' : `waiting for Protect: ${s.error}`);
+    }
+  });
+  bridge.on('assignment', (liveviewId) => {
+    // A poll can resolve after the window has been closed – never touch a
+    // destroyed window.
+    if (win.isDestroyed()) return;
+    const target = assignmentTargetUrl(connection.url, liveviewId);
+    vlog(`assignment liveviewId=${liveviewId} → target ${target}`);
+    if (target === currentTarget) {
+      vlog('  (same as current target – skipping navigation)');
+      return;
+    }
+    currentTarget = target;
+    win
+      .loadURL(target, { userAgent: USER_AGENT })
+      .catch((e) => vlog(`navigation failed: ${e.message}`));
+  });
+  bridge.start();
+  win.on('closed', () => bridge.stop());
+  return bridge;
+}
+
 // ── Initial page loading ──────────────────────────────────────────────────────
 
 /**
  * Loads the correct initial page:
+ *  - Viewport mode (dedicated connection configured) TOP-LEVEL overrides every
+ *    profile path below — see the viewport branch at the top of this function.
  *  - Config page when no profiles have been saved yet.
  *  - Profile selection page when multiple profiles exist and no startup profile set.
  *  - Directly loads the liveview when one profile or startup profile configured.
@@ -59,6 +347,42 @@ function getSortedDisplays() {
  * @param {{ monitor: number|null, fullscreen: boolean|null, profile: string|null }} [cliArgs]
  */
 async function loadInitialPage(win, cliArgs = {}) {
+  // A normal launch must never inherit a stale render-session override left
+  // by a previous window's fallback in this same process (render-session
+  // state is process-memory, not per-window/per-launch) — always start clean.
+  // Real fallbacks are decided later, asynchronously, from AdoptionClient
+  // events fired well after this point, so clearing here cannot race them.
+  renderSession.clear();
+
+  // ── Viewport mode: top-level override ───────────────────────────────────────
+  // A dedicated connection beats every profile path (select/config included).
+  // NOTE: the `enabled` flag is a UI-only convenience gate, not a security
+  // boundary — an incomplete connection (no url) must never crash or start a
+  // broken adoption; it simply falls through to the unchanged profile flow.
+  const vp = store.getViewportConfig();
+  if (vp.enabled && vp.url) {
+    vlog(`viewport mode active – dedicated connection ${vp.url}`);
+    try {
+      await win.loadURL(vp.url, { userAgent: USER_AGENT });
+    } catch (_) {
+      // did-fail-load handler takes care of navigation to the error page
+    }
+    startViewportBridge(win, {
+      url: vp.url,
+      username: vp.username || undefined,
+      password: vp.password || undefined,
+    });
+    if (!store.isInitialised()) {
+      store.markInitialised();
+    }
+    return;
+  }
+  if (vp.enabled && !vp.url) {
+    vlog(
+      'viewport enabled but no dedicated URL – using profile flow (bootstrap poller if name set)',
+    );
+  }
+
   const profiles = store.getProfiles();
 
   if (profiles.length === 0) {
@@ -107,6 +431,8 @@ async function loadInitialPage(win, cliArgs = {}) {
     } catch (_) {
       // did-fail-load handler takes care of navigation to the error page
     }
+    // Viewport mode: follow the Live View shared to this device.
+    startViewportBridge(win, activeProfile);
   } else {
     // Multiple profiles, no auto-select → show profile selection
     await win.loadFile(path.join(__dirname, '../html/profile-select.html'));

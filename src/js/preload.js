@@ -86,6 +86,7 @@ const logo128 =
 const ipc = {
   send: (channel, ...args) => ipcRenderer.send(channel, ...args),
   invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+  on: (channel, listener) => ipcRenderer.on(channel, listener),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -125,6 +126,39 @@ contextBridge.exposeInMainWorld('electronAPI', {
   startupSettingsGet: () => ipc.invoke('startupSettingsGet'),
   /** Persists (merges) the global startup settings. */
   startupSettingsSet: (settings) => ipc.send('startupSettingsSet', settings),
+  /**
+   * Returns the REDACTED viewport config for the settings UI:
+   * { enabled, name, url, username, fallbackProfileId, hasPassword,
+   *   encryptionAvailable, defaultName } — the password never crosses to the renderer.
+   */
+  viewportConfigGet: () => ipc.invoke('viewportConfigGet'),
+  /**
+   * Persists (merges) the viewport config. Include passwordChanged:true to
+   * (re-)encrypt `password` in main; omit it to keep the stored secret.
+   *
+   * FOOTGUN: passwordChanged:true with a missing/empty `password` CLEARS the
+   * stored password. Only send passwordChanged:true together with the actual
+   * new password value; for an unchanged password omit the flag (or send
+   * false) so the store keeps the existing ciphertext.
+   */
+  viewportConfigSet: (settings) => ipc.send('viewportConfigSet', settings),
+  /**
+   * Removes this Viewport from Protect: deletes the adopted device via the
+   * admin API, resets the local identity and disables viewport mode.
+   * Resolves to { ok, removed, message }.
+   */
+  viewportRemove: () => ipc.invoke('viewportRemove'),
+  /**
+   * This launch's best-effort "Show Shared Multiviews" auto-enable outcome
+   * ({ ran, ok, reason }), so the Viewport settings can warn if it couldn't run.
+   */
+  viewportSharedViewsStatus: () => ipc.invoke('viewportSharedViewsStatus'),
+  /**
+   * Subscribes to viewport adoption-state pushes from main
+   * ('registering' | 'online-unassigned' | 'assigned'). Only sent in viewport
+   * adoption mode; profile mode never receives this channel.
+   */
+  onViewportStatus: (cb) => ipc.on('viewportStatus', (_e, s) => cb(s)),
   /** Returns a list of all connected displays with index, label and bounds. */
   displaysGet: () => ipc.invoke('displaysGet'),
   /** Cycles to the next profile (F10). */
@@ -183,7 +217,18 @@ window.addEventListener(
  * fullscreen handler. Also manages the loading overlay lifecycle.
  */
 async function startLiveviewAutomation() {
+  // configLoad returns the EFFECTIVE render connection: the active profile, or —
+  // in Viewport mode — the dedicated viewport connection (ipc.js decides). The
+  // auto-login below and the unexpected-URL redirect both key off this object.
   const config = await ipc.invoke('configLoad');
+
+  // Viewport mode: configLoad carries viewportName only for the dedicated
+  // viewport connection (ipc.js). When set, the loading overlay shows
+  // "Loading Viewport" + the viewport's name instead of the profile-mode
+  // "Loading cameras…" + stage detail — profile mode is unaffected.
+  const vpName = config && config.viewportName;
+  const loadingText = (stage) =>
+    vpName ? ['Loading Viewport', vpName] : ['Loading cameras…', stage];
 
   // Skip automation on our own HTML pages
   if (
@@ -236,19 +281,19 @@ async function startLiveviewAutomation() {
     console.log('[upv] login successful – now at:', document.URL);
   }
 
-  setOverlayStatus('Loading cameras\u2026', 'Preparing liveview');
+  setOverlayStatus(...loadingText('Preparing liveview'));
 
   // ── Protect 2.x ──────────────────────────────────────────────────────────
   if (currentUrlIncludes('protect/liveview')) {
     console.log('[upv] URL pattern "protect/liveview" → Protect 2.x handler');
-    setOverlayStatus('Loading cameras\u2026', 'Applying Protect 2.x layout');
+    setOverlayStatus(...loadingText('Applying Protect 2.x layout'));
     await applyLiveviewV2();
     hideOverlay('v2 ready');
     return;
   }
 
   // ── Detect version string (Protect 4+ renders it; 3.x does not) ──────────
-  setOverlayStatus('Loading cameras\u2026', 'Detecting Protect version');
+  setOverlayStatus(...loadingText('Detecting Protect version'));
   console.log('[upv] waiting for version string in footer (timeout 10 s)');
   const versionFound = await waitUntil(
     () => document.querySelectorAll('[class^=Version__Item] > span').length > 0,
@@ -275,11 +320,11 @@ async function startLiveviewAutomation() {
     protectVersion &&
     isLegacyVersion3(protectVersion)
   ) {
-    setOverlayStatus('Loading cameras\u2026', 'Applying Protect 3.x layout');
+    setOverlayStatus(...loadingText('Applying Protect 3.x layout'));
     console.log('[upv] applying Protect 3.x liveview handler (pass 1)');
     await applyLiveviewV3();
     console.log('[upv] pass 1 done – waiting 4 s for lazy-rendered elements');
-    setOverlayStatus('Loading cameras\u2026', 'Waiting for lazy camera slots');
+    setOverlayStatus(...loadingText('Waiting for lazy camera slots'));
     await wait(4_000);
     console.log('[upv] applying Protect 3.x liveview handler (pass 2 – lazy elements)');
     await applyLiveviewV3();
@@ -293,11 +338,11 @@ async function startLiveviewAutomation() {
     currentUrlIncludes('protect/dashboard') &&
     isModernVersion(protectVersion)
   ) {
-    setOverlayStatus('Loading cameras\u2026', `Applying Protect ${protectVersion} layout`);
+    setOverlayStatus(...loadingText(`Applying Protect ${protectVersion} layout`));
     console.log('[upv] applying Protect 4.x+ liveview handler (pass 1)');
     await applyLiveviewV4andNewer();
     console.log('[upv] pass 1 done – waiting 4 s for lazy-rendered elements');
-    setOverlayStatus('Loading cameras\u2026', 'Waiting for lazy camera slots');
+    setOverlayStatus(...loadingText('Waiting for lazy camera slots'));
     await wait(4_000);
     console.log('[upv] applying Protect 4.x+ liveview handler (pass 2 – lazy elements)');
     await applyLiveviewV4andNewer();
@@ -469,6 +514,39 @@ function hideOverlay(reason = 'done') {
     document.getElementById(OVERLAY_IDS.overlay)?.remove();
     document.getElementById(OVERLAY_IDS.style)?.remove();
   }, 450);
+}
+
+// ── Viewport adoption status → overlay copy ──────────────────────────────────
+// In viewport adoption mode, main pushes 'viewportStatus' with
+// 'registering' | 'online-unassigned' | 'reconnecting' | 'assigned' while the
+// UCP device connection walks the adoption flow (see src/main/window.js). Map
+// all but 'assigned' onto the loading overlay; 'assigned' is intentionally
+// ignored — from there the normal liveview automation drives the overlay text.
+//
+// Notes:
+//  - Subscribed directly on the preload's ipc handle: with contextIsolation,
+//    window.electronAPI only exists in the page's main world, not here. The
+//    equivalent bridge binding (electronAPI.onViewportStatus) is exposed for
+//    main-world pages.
+//  - setOverlayStatus() safely no-ops until showOverlay() has created the
+//    overlay, and profile mode never receives the channel → inert there.
+//  - A reconnect may re-send 'online-unassigned' after 'assigned'; page
+//    navigation resets the overlay, so plain text updates are all we need.
+//  - typeof guard: real Electron always provides ipcRenderer.on; the test
+//    sandboxes' ipcRenderer mock only stubs send/invoke, and a throw here
+//    would abort script-level init (version-resolution.test.js appends a
+//    capture call to this source that must still run).
+if (typeof ipcRenderer.on === 'function') {
+  ipc.on('viewportStatus', (_event, state) => {
+    if (state === 'registering') {
+      setOverlayStatus('Registering Viewport…', 'Contacting your Protect console');
+    } else if (state === 'online-unassigned') {
+      setOverlayStatus('Viewport online', 'Assign a Live View to it in Protect → Devices');
+    } else if (state === 'reconnecting') {
+      setOverlayStatus('Viewport offline', 'Reconnecting to your console…');
+    }
+    // 'assigned' → the normal liveview loading flow drives the text.
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

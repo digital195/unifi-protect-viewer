@@ -13,6 +13,7 @@ A clean Electron app that auto-logs into your Unifi Protect instance and present
 - 🔐 **Auto-login** — credentials are stored securely and used on every start
 - 🖥️ **Fullscreen liveview** — all Unifi UI chrome is hidden automatically
 - 📋 **Multiple profiles** — save any number of NVRs or dashboards and switch between them instantly
+- 🖼️ **Viewport mode** — register the window as a Protect **Viewport** device and Share a Live View to it (follows re-shares natively)
 - ⚙️ **In-app configuration** — edit settings at any time without restarting (`F10` or tray menu)
 - 🔗 **URL-only mode** — quickly switch liveviews without re-entering credentials
 - 🔑 **Smart credential handling** — password is only overwritten when explicitly changed
@@ -78,6 +79,33 @@ Open the configuration editor (`F10` or tray → **Edit Configuration**).
 - **Set a startup profile** by enabling the **"Always start with this profile"** checkbox (only shown when more than one profile exists)
 
 ![Configuration – profile editor with sidebar](screenshots/configuration-connection.png)
+
+---
+
+## Viewport mode
+
+Viewport mode makes a viewer window act like a **UniFi Protect Viewport** — a display device your console can push camera views to. After it registers itself with Protect, you **Share a Live View** to it and the window shows that view fullscreen, automatically following whatever you re-share.
+
+**Requirements:** a UniFi OS console (UDM / UDM-Pro / UDM-SE / CloudKey Gen2+) running Protect **4.x – 7.x+**.
+
+### Enable it
+
+1. Open the configuration editor (`F10` or tray → **Edit Configuration**) and go to the **Viewport** tab.
+2. Turn on **Enable Viewport mode** and fill in:
+   - **NVR URL** — your Protect console address (the same one you open in a browser).
+   - **Username / Password** — an **admin** login. Used **once** to register the device, then to sign in automatically on each launch.
+   - **Device name** *(optional)* — how the Viewport appears under Protect → Devices. Defaults to `<HOSTNAME>_VIEWPORT`.
+   - **Fallback profile** *(optional)* — a normal profile to open if the Viewport can't connect at launch.
+3. Click **Save & Restart**.
+
+### Use it
+
+After the restart, open **Protect → Devices** — a new Viewport (your device name) appears. Use **Share with Viewport** (or assign a Live View to the device) and this window switches to it automatically, following any later re-share.
+
+### Security
+
+- Credentials are stored **encrypted on this device** (OS keychain via Electron `safeStorage`); where no keychain is available they are stored unencrypted with a clear in-app warning — prefer a dedicated, limited Protect account there. They are never sent anywhere except your own console.
+- The admin login registers the device only **once**. Afterwards the **device connection** reconnects without a password, using a self-adopted identity (key + pinned certificate) stored under the app's user-data directory. The saved login is still used to sign in to the Protect **web interface** on each launch — it is only ever sent to your own console.
 
 ---
 

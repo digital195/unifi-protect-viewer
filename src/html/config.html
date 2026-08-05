@@ -662,6 +662,22 @@
               </svg>
               Startup
             </button>
+            <button class="upv-content-tab" id="tabViewport" onclick="showTab('viewport')">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              Viewport
+            </button>
           </div>
 
           <!-- ─────────────────────────────────────────────────────────────── -->
@@ -1164,6 +1180,39 @@
                     </div>
                   </div>
                 </div>
+
+                <!-- ── Viewport pointer ────────────────────────────────────── -->
+                <div class="upv-info-card">
+                  <h4 class="upv-info-card__title">
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    Viewport mode
+                  </h4>
+                  <p>
+                    Turn this window into a Protect
+                    <strong class="upv-text-primary">Viewport</strong> — share a Live View to it
+                    from Protect and it displays fullscreen, following any re-share.
+                  </p>
+                  <button
+                    class="upv-btn upv-btn--secondary"
+                    type="button"
+                    onclick="showTab('viewport')"
+                    style="margin-top: 4px"
+                  >
+                    Open the Viewport tab →
+                  </button>
+                </div>
               </div>
               <!-- /right -->
             </div>
@@ -1412,6 +1461,425 @@
             <!-- /grid -->
           </div>
           <!-- /panel startup -->
+          <!-- TAB: Viewport -->
+          <div class="upv-tab-panel" id="panelViewport">
+            <!-- Registration-failure banner (populated on load from the ?vp-error
+                 query when startViewportBridge bounces back here on a fatal
+                 adoption error, e.g. wrong admin username/password). -->
+            <div id="viewport-error-banner" class="upv-msg upv-msg--error" role="alert">
+              <div>
+                <strong id="viewport-error-title"></strong>
+                <div id="viewport-error-detail" style="margin-top: 2px"></div>
+              </div>
+            </div>
+            <div class="upv-content-grid">
+              <!-- LEFT: Viewport mode card -->
+              <div>
+                <!-- Viewport mode -->
+                <div class="upv-cfg-card" id="viewport-group">
+                  <div class="upv-cfg-card__title">
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    Viewport Mode
+                  </div>
+
+                  <label class="upv-toggle-row" for="viewport-enabled">
+                    <div class="upv-toggle-row__label">
+                      <span class="upv-toggle-row__title">Enable Viewport mode</span>
+                      <span class="upv-toggle-row__desc"
+                        >This window registers with Protect as a Viewport device and displays the
+                        Live View you share to it.</span
+                      >
+                    </div>
+                    <span class="upv-toggle">
+                      <input type="checkbox" id="viewport-enabled" />
+                      <span class="upv-toggle__track"></span>
+                    </span>
+                  </label>
+
+                  <div id="viewport-fields" style="display: none">
+                    <div
+                      class="upv-alert upv-alert--warn"
+                      id="viewport-encwarn"
+                      style="display: none"
+                    >
+                      <svg
+                        width="13"
+                        height="13"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                      <p>
+                        Your OS keychain isn't available, so the password will be saved unencrypted
+                        on this device. Prefer a dedicated, limited Protect account here.
+                      </p>
+                    </div>
+
+                    <div class="upv-field">
+                      <label class="upv-field__label" for="viewport-url">NVR URL</label>
+                      <div class="upv-input-wrap">
+                        <span class="upv-input-wrap__icon">
+                          <svg
+                            width="13"
+                            height="13"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="2" y1="12" x2="22" y2="12" />
+                            <path
+                              d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
+                            />
+                          </svg>
+                        </span>
+                        <input
+                          class="upv-input"
+                          id="viewport-url"
+                          type="text"
+                          placeholder="https://192.168.1.1"
+                        />
+                      </div>
+                      <p class="upv-field__hint">
+                        The address of your Protect console — the same one you open in a browser.
+                        Used to register and sign in this Viewport.
+                      </p>
+                    </div>
+
+                    <div class="upv-field">
+                      <label class="upv-field__label" for="viewport-username">Username</label>
+                      <div class="upv-input-wrap">
+                        <span class="upv-input-wrap__icon">
+                          <svg
+                            width="13"
+                            height="13"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                            <circle cx="12" cy="7" r="4" />
+                          </svg>
+                        </span>
+                        <input
+                          class="upv-input"
+                          id="viewport-username"
+                          type="text"
+                          placeholder="admin"
+                          autocomplete="off"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="upv-field">
+                      <label class="upv-field__label" for="viewport-password">
+                        Password
+                        <span
+                          class="upv-field__badge upv-field__badge--unchanged"
+                          id="viewport-passwordBadge"
+                          >unchanged</span
+                        >
+                      </label>
+                      <div class="upv-input-wrap">
+                        <span class="upv-input-wrap__icon">
+                          <svg
+                            width="13"
+                            height="13"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                          </svg>
+                        </span>
+                        <input
+                          class="upv-input"
+                          id="viewport-password"
+                          type="password"
+                          placeholder=""
+                          autocomplete="new-password"
+                        />
+                        <button
+                          class="upv-pw-toggle"
+                          id="viewport-togglePassword"
+                          type="button"
+                          title="Toggle visibility"
+                        >
+                          <svg
+                            id="viewport-eyeIcon"
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                          </svg>
+                        </button>
+                      </div>
+                      <p class="upv-field__hint">
+                        Used once to register this Viewport, then to sign in automatically each
+                        launch. Stored encrypted on this device — never sent anywhere else.
+                      </p>
+                    </div>
+
+                    <div class="upv-field">
+                      <label class="upv-field__label" for="viewport-name">Device name</label>
+                      <div class="upv-input-wrap">
+                        <span class="upv-input-wrap__icon">
+                          <svg
+                            width="13"
+                            height="13"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path
+                              d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.83z"
+                            />
+                            <line x1="7" y1="7" x2="7.01" y2="7" />
+                          </svg>
+                        </span>
+                        <input class="upv-input" id="viewport-name" type="text" placeholder="" />
+                      </div>
+                      <p class="upv-field__hint">
+                        The name this Viewport shows under Protect → Devices. Leave blank to use the
+                        default shown above.
+                      </p>
+                      <div
+                        class="upv-alert upv-alert--warn"
+                        id="viewport-name-modelwarn"
+                        style="display: none"
+                      >
+                        <svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" y1="8" x2="12" y2="12" />
+                          <line x1="12" y1="16" x2="12.01" y2="16" />
+                        </svg>
+                        <p>
+                          <strong>"UP Viewport"</strong> is Protect's default model name, so the
+                          rename will look like it did nothing. Pick a different name, or leave this
+                          blank to use the default shown above.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div class="upv-field">
+                      <label class="upv-field__label" for="viewport-fallback"
+                        >Fallback profile</label
+                      >
+                      <div class="upv-input-wrap">
+                        <span class="upv-input-wrap__icon">
+                          <svg
+                            width="13"
+                            height="13"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <polygon points="5 3 19 12 5 21 5 3" />
+                          </svg>
+                        </span>
+                        <select class="upv-select" id="viewport-fallback">
+                          <option value="">None – no fallback</option>
+                        </select>
+                        <span class="upv-input-wrap__select-arrow">
+                          <svg
+                            width="11"
+                            height="11"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </span>
+                      </div>
+                      <p class="upv-field__hint">
+                        If the Viewport can't connect at launch, open this profile instead.
+                      </p>
+                    </div>
+
+                    <p class="upv-field__hint" id="viewport-status-hint">
+                      Changes apply after a restart. Check status under Protect → Devices (or
+                      upv.log).
+                    </p>
+                    <div
+                      id="viewportMsg"
+                      class="upv-msg upv-msg--success"
+                      style="margin-bottom: 8px"
+                    >
+                      <svg
+                        width="13"
+                        height="13"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      <span id="viewportMsgText"></span>
+                    </div>
+                    <div class="upv-btn-group">
+                      <button
+                        class="upv-btn upv-btn--primary"
+                        id="viewport-save-restart"
+                        type="button"
+                      >
+                        Save &amp; Restart
+                      </button>
+                      <button
+                        class="upv-btn upv-btn--secondary"
+                        id="viewport-save-only"
+                        type="button"
+                      >
+                        Save without restarting
+                      </button>
+                    </div>
+                    <button
+                      class="upv-btn upv-btn--secondary"
+                      id="viewport-remove"
+                      type="button"
+                      style="margin-top: 6px; display: none; color: var(--error-text)"
+                    >
+                      Remove this Viewport from Protect
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <!-- RIGHT: how-it-works explainer -->
+              <div>
+                <div class="upv-info-card" id="viewport-howto">
+                  <h4 class="upv-info-card__title">
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    How Viewport mode works
+                  </h4>
+                  <p>
+                    Viewport mode makes this window act like a UniFi Protect Viewport — a display
+                    device your console can push camera views to. Once it's registered, you share a
+                    Live View to it from Protect and it shows that view fullscreen, following
+                    whatever you re-share.
+                  </p>
+                  <ol
+                    style="
+                      margin: 8px 0 6px;
+                      padding-left: 18px;
+                      font-size: 12px;
+                      line-height: 1.6;
+                      color: var(--text-secondary);
+                    "
+                  >
+                    <li>
+                      Fill in your console URL and an
+                      <strong class="upv-text-primary">admin</strong> login, then
+                      <strong class="upv-text-primary">Save &amp; Restart</strong>.
+                    </li>
+                    <li>
+                      In Protect, open <strong class="upv-text-primary">Devices</strong> — a new
+                      Viewport (your device name — default
+                      <code class="upv-code-inline">&lt;HOSTNAME&gt;_VIEWPORT</code>) appears.
+                    </li>
+                    <li>
+                      Use <strong class="upv-text-primary">Share with Viewport</strong> (or assign a
+                      Live View to the device) — this window switches to it automatically and
+                      follows any re-share.
+                    </li>
+                  </ol>
+                  <p class="upv-info-card__note">
+                    Only the first launch needs the admin login, to register the device; after that
+                    it signs in on its own using an identity stored on this machine. Requires a
+                    UniFi OS console running Protect 4.x–7.x+.
+                  </p>
+                  <p class="upv-info-card__note">
+                    <strong class="upv-text-primary">Shared multiviews:</strong> Viewport mode keeps
+                    <strong class="upv-text-primary">"Show Shared Multiviews"</strong> enabled on
+                    this account each launch, so a shared/public multiview you assign displays
+                    instead of falling back to
+                    <strong class="upv-text-primary">All Cameras</strong>.
+                  </p>
+                  <!-- Shown only when the per-launch auto-enable actually ran and failed. -->
+                  <div
+                    id="viewport-sharedviews-warn"
+                    class="upv-msg upv-msg--error"
+                    role="alert"
+                    style="margin-top: 8px"
+                  >
+                    <div>
+                      <strong>Couldn't confirm "Show Shared Multiviews" for this account.</strong>
+                      <div id="viewport-sharedviews-warn-detail" style="margin-top: 2px"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- /panel viewport -->
         </div>
         <!-- /main-inner -->
       </main>
@@ -1419,6 +1887,7 @@
     <!-- /layout -->
 
     <script src="debug-block.js"></script>
+    <script src="viewport-settings.js"></script>
     <script>
       // ── State ────────────────────────────────────────────────────────────────
       let currentMode = 'url';
@@ -1427,6 +1896,8 @@
       let originalUsername = '';
       let passwordChanged = false;
       let usernameChanged = false;
+      let vpPasswordChanged = false;
+      let vpRedacted = null;
 
       // ── Utilities ────────────────────────────────────────────────────────────
       function escHtml(s) {
@@ -1443,7 +1914,7 @@
 
       // ── Tab navigation ───────────────────────────────────────────────────────
       function showTab(tab) {
-        ['connection', 'startup'].forEach((t) => {
+        ['connection', 'startup', 'viewport'].forEach((t) => {
           document
             .getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1))
             .classList.toggle('upv-content-tab--active', t === tab);
@@ -1492,6 +1963,80 @@
         b.textContent = passwordChanged ? 'changed' : 'unchanged';
         b.className = 'upv-field__badge' + (passwordChanged ? '' : ' upv-field__badge--unchanged');
       });
+
+      // ── Viewport card listeners ──────────────────────────────────────────────
+      document.getElementById('viewport-togglePassword').addEventListener('click', function () {
+        const pw = document.getElementById('viewport-password');
+        const icon = document.getElementById('viewport-eyeIcon');
+        const hidden = pw.type === 'password';
+        pw.type = hidden ? 'text' : 'password';
+        icon.innerHTML = hidden
+          ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
+          : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+      });
+
+      document.getElementById('viewport-password').addEventListener('input', function () {
+        vpPasswordChanged = this.value.length > 0;
+        this.classList.toggle('upv-input--changed', vpPasswordChanged);
+        const b = document.getElementById('viewport-passwordBadge');
+        b.textContent = vpPasswordChanged ? 'changed' : 'unchanged';
+        b.className =
+          'upv-field__badge' + (vpPasswordChanged ? '' : ' upv-field__badge--unchanged');
+      });
+
+      // "UP Viewport" is Protect's default model name, so renaming to it looks like a no-op.
+      function refreshViewportNameModelWarn() {
+        const isModelName =
+          document.getElementById('viewport-name').value.trim().toLowerCase() === 'up viewport';
+        document.getElementById('viewport-name-modelwarn').style.display = isModelName
+          ? 'flex'
+          : 'none';
+      }
+      document
+        .getElementById('viewport-name')
+        .addEventListener('input', refreshViewportNameModelWarn);
+
+      document.getElementById('viewport-enabled').addEventListener('change', function () {
+        document.getElementById('viewport-fields').style.display = this.checked ? 'block' : 'none';
+      });
+
+      document.getElementById('viewport-save-restart').addEventListener('click', function () {
+        if (saveViewport()) window.electronAPI.restart();
+      });
+      document.getElementById('viewport-save-only').addEventListener('click', function () {
+        saveViewport();
+      });
+
+      // Two-click confirm: first click arms, second click actually removes.
+      let vpRemoveArmed = false;
+      const VP_REMOVE_LABEL = 'Remove this Viewport from Protect';
+      const vpRemoveBtn = document.getElementById('viewport-remove');
+      if (vpRemoveBtn)
+        vpRemoveBtn.addEventListener('click', async () => {
+          if (!vpRemoveArmed) {
+            vpRemoveArmed = true;
+            vpRemoveBtn.textContent = 'Click again to confirm removal';
+            return;
+          }
+          vpRemoveBtn.disabled = true;
+          vpRemoveBtn.textContent = 'Removing…';
+          let res;
+          try {
+            res = await window.electronAPI.viewportRemove();
+          } catch (e) {
+            res = { ok: false, message: (e && e.message) || 'unknown' };
+          }
+          const msgEl = document.getElementById('viewportMsg');
+          document.getElementById('viewportMsgText').textContent =
+            res && res.ok
+              ? res.message + ' Restart to finish.'
+              : 'Remove failed: ' + ((res && res.message) || 'unknown');
+          msgEl.className =
+            'upv-msg upv-msg--' + (res && res.ok ? 'success' : 'error') + ' upv-msg--visible';
+          vpRemoveBtn.disabled = false;
+          vpRemoveArmed = false;
+          vpRemoveBtn.textContent = VP_REMOVE_LABEL;
+        });
 
       // ── Profile list ──────────────────────────────────────────────────────────
       function renderProfileList() {
@@ -1578,6 +2123,7 @@
         renderProfileList();
         loadProfileIntoForm(newP.id);
         refreshStartupProfileDropdown();
+        refreshViewportFallbackDropdown();
         document.getElementById('profileName').focus();
       }
 
@@ -1593,6 +2139,7 @@
         renderProfileList();
         loadProfileIntoForm(activeProfileId);
         refreshStartupProfileDropdown();
+        refreshViewportFallbackDropdown();
       }
 
       // ── Messages ──────────────────────────────────────────────────────────────
@@ -1742,6 +2289,19 @@
         if (prev && profiles.find((p) => p.id === prev)) sel.value = prev;
       }
 
+      function refreshViewportFallbackDropdown(selectedId) {
+        const sel = document.getElementById('viewport-fallback');
+        const prev = selectedId !== undefined ? selectedId : sel.value;
+        sel.innerHTML = '<option value="">None – no fallback</option>';
+        profiles.forEach((p) => {
+          const opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = p.name || 'Unnamed Profile';
+          sel.appendChild(opt);
+        });
+        if (prev && profiles.find((p) => p.id === prev)) sel.value = prev;
+      }
+
       async function loadStartupTab() {
         const settings = await window.electronAPI.startupSettingsGet();
         refreshStartupProfileDropdown(settings.profileId || '');
@@ -1750,6 +2310,69 @@
           ? 'block'
           : 'none';
         await refreshDisplayDropdown(settings.displayIndex ?? 0);
+      }
+
+      // ── Viewport tab ──────────────────────────────────────────────────────────
+      async function loadViewportTab() {
+        vpRedacted = await window.electronAPI.viewportConfigGet();
+        const vpForm = window.viewportSettings.viewportFormFromConfig(vpRedacted);
+        document.getElementById('viewport-enabled').checked = vpForm.enabled;
+        document.getElementById('viewport-fields').style.display = vpForm.enabled
+          ? 'block'
+          : 'none';
+        document.getElementById('viewport-url').value = vpForm.url;
+        document.getElementById('viewport-username').value = vpForm.username;
+        const vpPw = document.getElementById('viewport-password');
+        vpPw.value = '';
+        vpPw.placeholder = vpForm.passwordPlaceholder;
+        vpPasswordChanged = false;
+        vpPw.classList.remove('upv-input--changed');
+        document.getElementById('viewport-passwordBadge').textContent = 'unchanged';
+        document.getElementById('viewport-passwordBadge').className =
+          'upv-field__badge upv-field__badge--unchanged';
+        document.getElementById('viewport-name').value = vpForm.name;
+        document.getElementById('viewport-name').placeholder = vpForm.namePlaceholder;
+        refreshViewportFallbackDropdown(vpForm.fallbackProfileId);
+        document.getElementById('viewport-encwarn').style.display = vpForm.showEncWarning
+          ? 'flex'
+          : 'none';
+        // Remove button only makes sense once a viewport is configured.
+        const removeBtn = document.getElementById('viewport-remove');
+        if (removeBtn) {
+          removeBtn.style.display = vpForm.enabled || vpRedacted.hasPassword ? 'flex' : 'none';
+          removeBtn.disabled = false;
+          removeBtn.textContent = 'Remove this Viewport from Protect';
+          vpRemoveArmed = false;
+        }
+        refreshViewportNameModelWarn();
+        await refreshSharedViewsWarning();
+        // Report whether Viewport mode is enabled so the caller can decide which
+        // tab to land on (viewport-mode users should open straight to Viewport).
+        return vpForm.enabled;
+      }
+
+      // Shows a warning only when THIS launch's best-effort "Show Shared
+      // Multiviews" auto-enable actually ran and failed — so a shared multiview
+      // silently showing as All Cameras is explained rather than mysterious.
+      async function refreshSharedViewsWarning() {
+        const warn = document.getElementById('viewport-sharedviews-warn');
+        if (!warn) return;
+        try {
+          const sv = await window.electronAPI.viewportSharedViewsStatus();
+          if (sv && sv.ran && !sv.ok) {
+            document.getElementById('viewport-sharedviews-warn-detail').textContent =
+              sv.reason === 'read'
+                ? 'The app couldn’t read this account’s settings — check the admin username/password or its permissions.'
+                : sv.reason === 'patch'
+                  ? 'The console rejected the change — this account may lack permission to change its own settings.'
+                  : 'Enable “Show Shared Multiviews” in Protect (as this account) if a shared view shows as All Cameras.';
+            warn.classList.add('upv-msg--visible');
+          } else {
+            warn.classList.remove('upv-msg--visible');
+          }
+        } catch (e) {
+          warn.classList.remove('upv-msg--visible'); // status is best-effort
+        }
       }
 
       async function refreshDisplayDropdown(selectedIndex) {
@@ -1789,6 +2412,35 @@
         setTimeout(() => msgEl.classList.remove('upv-msg--visible'), 3000);
       }
 
+      function saveViewport() {
+        const vpForm = {
+          enabled: document.getElementById('viewport-enabled').checked,
+          name: document.getElementById('viewport-name').value,
+          url: document.getElementById('viewport-url').value,
+          username: document.getElementById('viewport-username').value,
+          passwordValue: document.getElementById('viewport-password').value,
+          passwordChanged: vpPasswordChanged,
+          fallbackProfileId: document.getElementById('viewport-fallback').value,
+        };
+        const check = window.viewportSettings.validateViewportForm(vpForm, vpRedacted);
+        const msgEl = document.getElementById('viewportMsg');
+        if (!check.ok) {
+          document.getElementById('viewportMsgText').textContent = check.error;
+          msgEl.className = 'upv-msg upv-msg--error upv-msg--visible';
+          const bad = document.getElementById(check.field);
+          if (bad) bad.focus();
+          return false;
+        }
+        window.electronAPI.viewportConfigSet(
+          window.viewportSettings.buildViewportSetPayload(vpForm),
+        );
+        document.getElementById('viewportMsgText').textContent =
+          'Saved. Restart to apply Viewport changes.';
+        msgEl.className = 'upv-msg upv-msg--success upv-msg--visible';
+        setTimeout(() => msgEl.classList.remove('upv-msg--visible'), 3000);
+        return true;
+      }
+
       // ── Init ──────────────────────────────────────────────────────────────────
       window.addEventListener('DOMContentLoaded', async () => {
         renderDebugBlock(document.getElementById('debugBlockContainer'));
@@ -1812,6 +2464,26 @@
           renderProfileList();
           loadProfileIntoForm(activeProfileId);
           await loadStartupTab();
+          const viewportEnabled = await loadViewportTab();
+
+          // If startViewportBridge bounced us back here on a FATAL adoption error
+          // (e.g. wrong admin username/password), notify the user WHY instead of
+          // silently reopening the Viewport tab. The reason arrives on ?vp-error.
+          const vpError = new URLSearchParams(window.location.search).get('vp-error');
+          const vpBanner = vpError && window.viewportSettings.adoptionErrorBanner(vpError);
+          if (vpBanner) {
+            document.getElementById('viewport-error-title').textContent = vpBanner.title;
+            document.getElementById('viewport-error-detail').textContent = vpBanner.detail;
+            document.getElementById('viewport-error-banner').classList.add('upv-msg--visible');
+          }
+
+          // When this window is running as a Viewport (or bounced back here with a
+          // registration error to explain), open straight to the Viewport tab —
+          // that's the context the user came to manage. Otherwise keep the default
+          // Connection tab (already active in markup).
+          if (viewportEnabled || vpBanner) {
+            showTab('viewport');
+          }
 
           // Show "← Profile Selection" nav link when multiple profiles are configured
           if (profiles.length > 1) {

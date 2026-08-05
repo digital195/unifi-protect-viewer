@@ -62,6 +62,9 @@ const app = {
   relaunch: () => {},
   quit: () => {},
   exit: () => {},
+  // Single-instance lock: default to "we got the lock" (the common case).
+  // Tests that simulate a duplicate launch override this to return false.
+  requestSingleInstanceLock: () => true,
 };
 
 // ── BrowserWindow mock ────────────────────────────────────────────────────────
@@ -111,8 +114,9 @@ class BrowserWindow {
     return Promise.resolve();
   }
 
-  loadFile(filePath) {
+  loadFile(filePath, opts) {
     this._file = filePath;
+    this._loadFileOpts = opts;
     return Promise.resolve();
   }
 
@@ -178,6 +182,14 @@ class BrowserWindow {
     return this._visible;
   }
 
+  isMinimized() {
+    return this._minimized ?? false;
+  }
+
+  restore() {
+    this._minimized = false;
+  }
+
   isDestroyed() {
     return this._destroyed;
   }
@@ -186,6 +198,14 @@ class BrowserWindow {
     this._destroyed = true;
   }
 }
+
+// Captured immediately, before any test can override them. Some tests stub
+// BrowserWindow.getAllWindows (a static method, shared across all tests/files
+// running in this process) to simulate 0/1 windows; without restoring it in
+// resetElectronMocks() below, that stub leaks into every test that runs
+// afterwards and returns a fabricated window instead of the real one.
+const originalBrowserWindowGetAllWindows = BrowserWindow.getAllWindows;
+const originalBrowserWindowFromWebContents = BrowserWindow.fromWebContents;
 
 // ── Menu mock ─────────────────────────────────────────────────────────────────
 
@@ -367,6 +387,11 @@ function resetElectronMocks() {
   app.relaunch = () => {};
   app.quit = () => {};
   app.exit = () => {};
+  app.requestSingleInstanceLock = () => true;
+
+  // Undo any per-test stub of these static methods (see capture above).
+  BrowserWindow.getAllWindows = originalBrowserWindowGetAllWindows;
+  BrowserWindow.fromWebContents = originalBrowserWindowFromWebContents;
 
   screen._displays = null;
 }
