@@ -251,7 +251,9 @@ async function startLiveviewAutomation() {
   setOverlayStatus('Loading cameras\u2026', 'Detecting Protect version');
   console.log('[upv] waiting for version string in footer (timeout 10 s)');
   const versionFound = await waitUntil(
-    () => document.querySelectorAll('[class^=Version__Item] > span').length > 0,
+    () =>
+      document.querySelectorAll('[class^=Version__Item] > span').length > 0 ||
+      document.querySelectorAll('[class^=Version__Row]').length > 0,
     10_000,
   );
   if (!versionFound) {
@@ -298,7 +300,7 @@ async function startLiveviewAutomation() {
     await applyLiveviewV4andNewer();
     console.log('[upv] pass 1 done – waiting 4 s for lazy-rendered elements');
     setOverlayStatus('Loading cameras\u2026', 'Waiting for lazy camera slots');
-    await wait(4_000);
+    await wait(500);
     console.log('[upv] applying Protect 4.x+ liveview handler (pass 2 – lazy elements)');
     await applyLiveviewV4andNewer();
     hideOverlay('v4+ ready');
@@ -644,6 +646,97 @@ async function applyLiveviewV3() {
 // § Liveview handler – Protect 4.x / 5.x / 6.x / 7.x+  (source: src/js/liveview/v4.js)
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Returns the max-width the viewport wrapper may occupy while keeping every
+ * grid slot at 16:9.
+ *
+ * Protect sizes the camera grid itself, but only *after* measuring the
+ * wrapper — so capping the wrapper at single-camera width makes Protect
+ * compute correspondingly small slots. The cap must therefore account for how
+ * many columns and rows the current liveview layout actually uses: a 2-wide
+ * grid is 32:9, not 16:9.
+ *
+ * @param {Element|null|undefined} viewportsEl  the liveview__Viewports grid
+ * @returns {string} CSS max-width value
+ */
+function computeViewportMaxWidth(viewportsEl) {
+  const SLOT_ASPECT = 1.7777777777777777; // 16:9
+  let cols = 1;
+  let rows = 1;
+  try {
+    if (viewportsEl) {
+      const cs = getComputedStyle(viewportsEl);
+      const count = (v) => (v || '').split(/\s+/).filter((t) => t && t !== 'none').length;
+      cols = count(cs.gridTemplateColumns) || 1;
+      rows = count(cs.gridTemplateRows) || 1;
+    }
+  } catch (e) {
+    console.warn('[upv] v4+: grid measurement failed –', e && e.message);
+  }
+  return `calc(100vh * ${SLOT_ASPECT} * ${cols} / ${rows})`;
+}
+
+/**
+ * Persists the max-width via a <style> tag, because the inline value is lost
+ * when the user navigates away from liveview and back (React re-mount).
+ * Rewrites the rule when the value changes, so a layout switch is not left
+ * pinned to a stale cap.
+ */
+function persistViewportMaxWidth(viewportWrapperEl, maxWidth) {
+  const styleId = '__upv_viewport_maxwidth';
+  const wrapperClass = viewportWrapperEl
+    ? Array.from(viewportWrapperEl.classList).find((c) =>
+        c.startsWith('liveview__ViewportsWrapper'),
+      )
+    : null;
+  const selector = wrapperClass ? `.${wrapperClass}` : '[class^=liveview__ViewportsWrapper]';
+  let styleEl = document.getElementById(styleId);
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = styleId;
+    document.head.appendChild(styleEl);
+  }
+  const rule = `${selector}{max-width:${maxWidth}!important;max-height:100vh!important;overflow:hidden!important;}`;
+  if (styleEl.textContent !== rule) {
+    styleEl.textContent = rule;
+    console.log(
+      `[upv] v4+: persisted maxWidth="${maxWidth}" + maxHeight/overflow via <style id="${styleId}">`,
+    );
+  }
+}
+
+/** Measures the current grid and applies the matching cap. */
+function fitViewportToGrid(liveViewEl, SEL) {
+  const root = liveViewEl ?? document;
+  const wrapperEl = root.querySelector(SEL.viewportWrapper);
+  if (!wrapperEl) return;
+  const maxWidth = computeViewportMaxWidth(root.querySelector(SEL.viewports));
+  applyStyle(wrapperEl, 'maxWidth', maxWidth);
+  persistViewportMaxWidth(wrapperEl, maxWidth);
+}
+
+/**
+ * Re-fits when the liveview layout changes (s2 -> s4) or the window resizes.
+ * Converges: an unchanged cap rewrites nothing, so the observer cannot loop.
+ */
+function watchGridLayout(liveViewEl, SEL) {
+  if (window.__upv_grid_watcher) return;
+  window.__upv_grid_watcher = true;
+
+  const refit = () => fitViewportToGrid(liveViewEl, SEL);
+  window.addEventListener('resize', refit);
+
+  const viewportsEl = (liveViewEl ?? document).querySelector(SEL.viewports);
+  if (viewportsEl) {
+    // The layout is encoded in a class token (e.g. "s2"), so watch class only.
+    new MutationObserver(refit).observe(viewportsEl, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+  }
+  console.log('[upv] v4+: grid layout watcher installed');
+}
+
 async function applyLiveviewV4andNewer() {
   const SEL = {
     fullscreenWrapper: '[class^=liveView__FullscreenWrapper]',
@@ -655,6 +748,7 @@ async function applyLiveviewV4andNewer() {
     commonWidget: '[class^=common__Widget]',
     scrollable: '[class^=dashboard__Scrollable]',
     viewportWrapper: '[class^=liveview__ViewportsWrapper]',
+    viewports: '[class^="liveview__Viewports-"]',
     optionButtons: '[data-testid="option"]',
     timelineButtons:
       '[class^=LiveViewGridSlot__PlayerOptions] [class^=PlayerTopLeftControls__ButtonGroup]',
@@ -687,30 +781,14 @@ async function applyLiveviewV4andNewer() {
   applyStyle(liveViewEl?.querySelectorAll(SEL.commonWidget)[0], 'border', '0');
   applyStyle(liveViewEl?.querySelectorAll(SEL.scrollable)[0], 'paddingBottom', '0');
   const viewportWrapperEl = liveViewEl?.querySelectorAll(SEL.viewportWrapper)[0];
-  applyStyle(viewportWrapperEl, 'maxWidth', 'calc(100vh * 1.7777777777777777)');
+  applyStyle(viewportWrapperEl, 'maxHeight', '100vh');
+  applyStyle(viewportWrapperEl, 'overflow', 'hidden');
 
-  // Fix: The maxWidth is computed dynamically and gets lost when the user
-  // navigates away from liveview and comes back. We persist it via a <style>
-  // tag so the value survives React re-mounts.
-  const computedMaxWidth = viewportWrapperEl?.style?.maxWidth || 'calc(100vh * 1.7777777777777777)';
-  const persistStyleId = '__upv_viewport_maxwidth';
-  if (!document.getElementById(persistStyleId)) {
-    const persistStyle = document.createElement('style');
-    persistStyle.id = persistStyleId;
-    const viewportWrapperClass = viewportWrapperEl
-      ? Array.from(viewportWrapperEl.classList).find((c) =>
-          c.startsWith('liveview__ViewportsWrapper'),
-        )
-      : null;
-    const selector = viewportWrapperClass
-      ? `.${viewportWrapperClass}`
-      : '[class^=liveview__ViewportsWrapper]';
-    persistStyle.textContent = `${selector}{max-width:${computedMaxWidth}!important;}`;
-    document.head.appendChild(persistStyle);
-    console.log(
-      `[upv] v4+: persisted maxWidth="${computedMaxWidth}" via <style id="${persistStyleId}">`,
-    );
-  }
+  // Cap the wrapper to the grid's true aspect (cols/rows), not a single 16:9
+  // slot – Protect measures this wrapper to size the camera slots, so a
+  // single-camera cap shrinks a multi-camera grid. See computeViewportMaxWidth.
+  fitViewportToGrid(liveViewEl, SEL);
+  watchGridLayout(liveViewEl, SEL);
 
   console.log('[upv] v4+: waiting for per-camera option buttons');
   const optionsFound = await waitUntil(() =>
@@ -807,11 +885,12 @@ function isModernVersion(version) {
  * Detects the major Unifi Protect version via DOM parsing and optional profile fallback.
  *
  * Resolution order:
- *  1. Read version span containing "Protect X.Y.Z" from the footer DOM.
+ *  1. Read the version from the footer DOM: Version__Item > span (pre-7.x) or
+ *     Version__Row (7.x+, innerText e.g. "Protect 7.2.105Up to date").
  *  2. If DOM detection succeeds → return the mapped major version string (e.g. "6.x").
  *     Legacy versions (3.x) map to "3.x". Modern versions (>= 4.x) map to "{major}.x".
  *  3. If DOM detection fails → use profile.protectVersion when defined.
- *  4. If both fail → return "6.x" as the safe default (newest known-stable UI).
+ *  4. If both fail → return "7.x" as the safe default (newest known-stable UI).
  *
  * @param {Document} doc     - The document object to query (injected for testability).
  * @param {object}   [profile] - Optional profile object that may carry a protectVersion field.
@@ -820,19 +899,21 @@ function isModernVersion(version) {
 function resolveProtectVersion(doc, profile) {
   // ── Step 1: try DOM detection ────────────────────────────────────────────
   try {
-    const spans = Array.from(doc.querySelectorAll('[class^=Version__Item] > span'));
-    const matchingSpan = spans.find((el) => el.innerText && el.innerText.includes('Protect'));
-    if (matchingSpan) {
-      const raw = matchingSpan.innerHTML ?? '';
-      const versionString = raw.replace('Protect', '').trim();
-      // Extract the major version number from e.g. "6.2.88"
-      const majorMatch = versionString.match(/^(\d+)\./);
+    // Pre-7.x renders the version in a Version__Item > span; Protect 7.x+ replaced it
+    // with a Version__Row element (innerText e.g. "Protect 7.2.105Up to date").
+    const els = Array.from(
+      doc.querySelectorAll('[class^=Version__Item] > span, [class^=Version__Row]'),
+    );
+    const el = els.find((el) => el.innerText && el.innerText.includes('Protect'));
+    if (el) {
+      // Extract the major version number from e.g. "Protect 6.2.88" or "Protect 7.2.105Up to date"
+      const majorMatch = (el.innerHTML ?? '').match(/Protect\s+(\d+)\./);
       if (majorMatch) {
         const major = parseInt(majorMatch[1], 10);
         // Accept legacy (3.x) and all modern versions (>= 4.x) – future-proof
         if (major === 3 || major >= 4) {
           const mapped = `${major}.x`;
-          console.log(`[upv] DOM version detected: ${versionString} → ${mapped}`);
+          console.log(`[upv] DOM version detected: ${mapped}`);
           return mapped;
         }
       }

@@ -70,35 +70,12 @@ jobs:
         with:
           node-version: 22
 
+      - name: Download Dependencies
+        run: npm ci
+
       - name: Tests
         run: |
           npm run test:coverage
-
-      # Wine is required on Linux for Windows cross-builds:
-      # electron-packager uses rcedit (a Windows PE tool) to embed the icon
-      # and version metadata into the .exe.  rcedit/cross-spawn-windows-exe
-      # picks up the Wine binary via the WINE_BINARY env var.
-      - name: Install Wine (win32 targets only)
-        if: matrix.platform == 'win32'
-        run: |
-          sudo dpkg --add-architecture i386
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends wine wine32 wine64
-          # Prefer wine64, fall back to plain wine.
-          # Export via GITHUB_ENV so the Build step picks it up automatically –
-          # this is more reliable in Gitea Actions than step outputs + expressions.
-          if command -v wine64 &>/dev/null; then
-            WINE_BIN="$(command -v wine64)"
-          elif command -v wine &>/dev/null; then
-            WINE_BIN="$(command -v wine)"
-          else
-            echo "ERROR: No wine binary found after installation!" && exit 1
-          fi
-          echo "Using wine binary: ${WINE_BIN}  ($(${WINE_BIN} --version))"
-          echo "WINE_BINARY=${WINE_BIN}" >> "$GITHUB_ENV"
-
-      - name: Download Dependencies
-        run: npm ci
 
       - name: Build
         env:
@@ -107,8 +84,6 @@ jobs:
           UPV_PORTABLE:       ${{ matrix.portable }}
           UPV_OUT_DIR:        ${{ env.OUT_DIR }}
           UPV_ENCRYPTION_KEY: ${{ secrets.UPV_ENCRYPTION_KEY }}
-          # WINE_BINARY is injected via $GITHUB_ENV by the Wine install step above
-          # (only present for win32 builds; unset for darwin/linux – no Wine needed).
         run: node scripts/build.js
 
       - name: Resolve Build Directory

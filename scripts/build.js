@@ -4,11 +4,11 @@
  * @file build.js
  * @description Universal build script for Unifi Protect Viewer.
  *
- * Uses the electron-packager JS API (not CLI).
+ * Uses the @electron/packager JS API (not CLI).
  *
- * For Windows targets built on a Linux runner, Wine is required so that
- * electron-packager (via rcedit) can embed the icon and PE metadata into
- * the .exe.  The CI workflow installs Wine before running this script.
+ * Windows icon/metadata embedding is handled by the pure-JS `resedit`
+ * library, so Windows targets can be built on any host platform – no
+ * Wine required.
  *
  * ── Environment variables ────────────────────────────────────────────────────
  *
@@ -20,7 +20,6 @@
  *                       Default: random 32-byte hex (set a fixed value for releases!)
  */
 
-const packager = require('electron-packager');
 const path = require('node:path');
 const fs = require('node:fs');
 const crypto = require('node:crypto');
@@ -110,6 +109,9 @@ console.log(`[build] ───────────────────�
 async function main() {
   writeBuildConfig();
   try {
+    // @electron/packager is an ESM-only package – load it via dynamic import
+    // so this CommonJS script works on any Node version that supports ESM.
+    const { packager } = await import('@electron/packager');
     const options = {
       dir: './',
       name: appName,
@@ -120,7 +122,7 @@ async function main() {
       asar: true,
       prune: true,
       icon,
-      // Always set version + metadata – on Linux Wine handles the PE writes for win32
+      // Always set version + metadata – resedit embeds them into the .exe (no Wine)
       appVersion,
       ...(platform === 'win32'
         ? {

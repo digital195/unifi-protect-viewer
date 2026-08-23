@@ -44,9 +44,9 @@
     "electron-store": "8.2.0"
   },
   "devDependencies": {
+    "@electron/packager": "20.3.0",
     "cross-env": "10.1.0",
-    "electron": "42.4.0",
-    "electron-packager": "17.1.2",
+    "electron": "42.9.3",
     "husky": "9.1.7",
     "lint-staged": "17.0.7",
     "prettier": "3.8.4"

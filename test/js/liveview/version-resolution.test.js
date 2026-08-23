@@ -47,18 +47,31 @@ function makeVersionSpan(text) {
 }
 
 /**
- * Builds a minimal document mock whose querySelectorAll('[class^=Version__Item] > span')
- * returns the given spans array.
+ * Builds a minimal fake element whose innerText contains "Protect X.Y.Z"
+ * (the 7.x Version__Row replaces Version__Item > span in the footer).
+ */
+function makeVersionRow(text) {
+  return {
+    innerText: text,
+    innerHTML: text,
+  };
+}
+
+/**
+ * Builds a minimal document mock whose combined version-selector query
+ * ('[class^=Version__Item] > span, [class^=Version__Row]') returns the given
+ * spans array followed by the optional rows array (7.x footer element).
  *
  * All other query methods return safe empty defaults.
  */
-function makeDocWithSpans(spans) {
+function makeDocWithSpans(spans, rows = []) {
   return {
     URL: 'https://cam.local/protect/dashboard',
     querySelectorAll: (selector) => {
-      if (selector === '[class^=Version__Item] > span') {
-        // Return array-like with Array.from support
-        return Object.assign([...spans], { length: spans.length });
+      if (selector.includes('Version__Item') || selector.includes('Version__Row')) {
+        // Combined selector query – spans first, then rows (document order)
+        const all = [...spans, ...rows];
+        return Object.assign(all, { length: all.length });
       }
       return Object.assign([], { length: 0 });
     },
@@ -165,10 +178,10 @@ describe('resolveProtectVersion – source contract', () => {
     );
   });
 
-  test('DOM selector is exactly "[class^=Version__Item] > span"', () => {
+  test('DOM selector covers Version__Item spans and 7.x Version__Row', () => {
     assert.ok(
-      preloadSource.includes('[class^=Version__Item] > span'),
-      'version selector must be "[class^=Version__Item] > span"',
+      preloadSource.includes('[class^=Version__Item] > span, [class^=Version__Row]'),
+      'version selector must query both the pre-7.x span and the 7.x row elements',
     );
   });
 
@@ -279,6 +292,50 @@ describe('resolveProtectVersion – runtime behavior', () => {
     const doc = makeDocWithSpans([makeVersionSpan('Protect 15.0.0')]);
     const result = fn(doc, undefined);
     assert.strictEqual(result, '15.x');
+  });
+
+  // ── 7.x Version__Row detection (replaces Version__Item on Protect 7.x) ───
+
+  test('(1b) Version__Row only: "Protect 7.2.105Up to date" → "7.x"', () => {
+    const doc = makeDocWithSpans([], [makeVersionRow('Protect 7.2.105Up to date')]);
+    const result = fn(doc, undefined);
+    assert.strictEqual(result, '7.x');
+  });
+
+  test('(1b) Version__Row only: profile fallback is ignored when row detection succeeds', () => {
+    const doc = makeDocWithSpans([], [makeVersionRow('Protect 8.0.1Up to date')]);
+    const profile = { protectVersion: '3.x' };
+    const result = fn(doc, profile);
+    assert.strictEqual(result, '8.x', 'DOM Version__Row must override profile fallback');
+  });
+
+  test('(1b) Version__Item takes precedence over Version__Row', () => {
+    const doc = makeDocWithSpans(
+      [makeVersionSpan('Protect 6.2.88')],
+      [makeVersionRow('Protect 7.2.105Up to date')],
+    );
+    const result = fn(doc, undefined);
+    assert.strictEqual(
+      result,
+      '6.x',
+      'Step 1 (Version__Item) must win over Step 1b (Version__Row)',
+    );
+  });
+
+  test('(1b) Version__Row without version number → falls back to profile', () => {
+    const doc = makeDocWithSpans([], [makeVersionRow('Protect')]);
+    const profile = { protectVersion: '5.x' };
+    const result = fn(doc, profile);
+    assert.strictEqual(result, '5.x');
+  });
+
+  test('(1b) Version__Row innerText null → does not throw, falls back to profile', () => {
+    const doc = makeDocWithSpans([], [{ innerText: null, innerHTML: null }]);
+    const profile = { protectVersion: '4.x' };
+    assert.doesNotThrow(() => {
+      const result = fn(doc, profile);
+      assert.strictEqual(result, '4.x');
+    });
   });
 
   // ── Test 2: DOM detection failure → fallback used ─────────────────────────
@@ -598,10 +655,10 @@ describe('resolveProtectVersion – UI persistence (profile structure contract)'
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('resolveProtectVersion – regression safety', () => {
-  test('DOM selector has NOT changed from "[class^=Version__Item] > span"', () => {
+  test('DOM selector still covers the pre-7.x Version__Item span', () => {
     assert.ok(
       preloadSource.includes('[class^=Version__Item] > span'),
-      'REGRESSION: DOM selector for version spans must remain "[class^=Version__Item] > span"',
+      'REGRESSION: DOM selector must keep querying the pre-7.x version span',
     );
   });
 

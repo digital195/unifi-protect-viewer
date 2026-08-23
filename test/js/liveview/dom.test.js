@@ -772,10 +772,10 @@ describe('preload.js dark theme – activateDarkTheme', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('preload.js – resolveProtectVersion', () => {
-  test('CSS selector for version spans is exactly "[class^=Version__Item] > span"', () => {
+  test('DOM selector covers Version__Item spans (pre-7.x) and Version__Row (7.x+)', () => {
     assert.ok(
-      preloadSource.includes('[class^=Version__Item] > span'),
-      'version selector must be "[class^=Version__Item] > span"',
+      preloadSource.includes('[class^=Version__Item] > span, [class^=Version__Row]'),
+      'version detection must query both the pre-7.x span and the 7.x row elements',
     );
   });
 
@@ -796,10 +796,10 @@ describe('preload.js – resolveProtectVersion', () => {
     );
   });
 
-  test('strips "Protect" prefix and trims result', () => {
+  test('extracts major version via unanchored /Protect\\s+(\\d+)\\. regex (both DOM formats)', () => {
     assert.ok(
-      preloadSource.includes(".replace('Protect', '').trim()"),
-      'resolveProtectVersion must call .replace("Protect", "").trim()',
+      preloadSource.includes('/Protect\\s+(\\d+)\\./'),
+      'resolveProtectVersion must match the version number after "Protect" in either DOM format',
     );
   });
 
@@ -1101,10 +1101,50 @@ describe('preload.js – liveview v4+ selector contracts', () => {
     });
   }
 
-  test('v4+ sets viewport maxWidth to calc(100vh * 1.7777...)', () => {
+  test('v4+ sets viewport maxHeight to 100vh', () => {
     assert.ok(
-      preloadSource.includes('calc(100vh * 1.7777777777777777)'),
-      'v4+ viewport maxWidth must be "calc(100vh * 1.7777777777777777)"',
+      preloadSource.includes("'maxHeight', '100vh'"),
+      'v4+ viewport maxHeight must be "100vh"',
+    );
+  });
+
+  test('v4+ clips viewport wrapper overflow', () => {
+    assert.ok(
+      preloadSource.includes("applyStyle(viewportWrapperEl, 'overflow', 'hidden')"),
+      'v4+ must set overflow hidden on the viewport wrapper',
+    );
+  });
+
+  test('v4+ derives viewport maxWidth from the grid aspect, not a fixed 16:9', () => {
+    assert.ok(
+      preloadSource.includes('const SLOT_ASPECT = 1.7777777777777777'),
+      'v4+ must base the cap on a 16:9 slot aspect constant',
+    );
+    assert.ok(
+      preloadSource.includes('calc(100vh * ${SLOT_ASPECT} * ${cols} / ${rows})'),
+      'v4+ cap must scale by the grid column/row count',
+    );
+  });
+
+  test('v4+ re-fits the grid on layout change instead of pinning a stale cap', () => {
+    assert.ok(
+      preloadSource.includes('function watchGridLayout'),
+      'v4+ must install a grid layout watcher',
+    );
+    assert.ok(
+      !preloadSource.includes('if (!document.getElementById(persistStyleId))'),
+      'v4+ must not write the persisted max-width rule only once',
+    );
+  });
+
+  test('v4+ persists max-height and overflow in the style tag', () => {
+    assert.ok(
+      preloadSource.includes('max-height:100vh!important'),
+      'persisted style must include max-height',
+    );
+    assert.ok(
+      preloadSource.includes('overflow:hidden!important'),
+      'persisted style must include overflow hidden',
     );
   });
 
