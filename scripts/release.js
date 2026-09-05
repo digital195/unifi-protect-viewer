@@ -10,14 +10,16 @@
  *
  * What it does:
  *   1. Validates the version string (semver, optionally with pre-release label).
- *   2. Updates "version" in package.json and package-lock.json.
+ *   2. Updates "version" in package.json, then runs `npm install` so that
+ *      package-lock.json (root version field) is synced with the manifest –
+ *      the two can no longer drift apart.
  *   3. git add -A
  *   4. git commit -m "release version <version>"
  *   5. git tag -a v<version> -m "release version <version>"
  *   6. git push origin <current-branch>
  *   7. git push origin v<version>
  *
- * Works on macOS, Linux and Windows (PowerShell / CMD) – only Node.js required.
+ * Works on macOS, Linux and Windows (PowerShell / CMD) – only Node.js + npm required.
  */
 
 const fs = require('node:fs');
@@ -118,21 +120,13 @@ pkg.version = version;
 writeJson(pkgPath, pkg);
 console.log(`[release] package.json: ${oldVersion} → ${version}`);
 
-// ── 2. Update package-lock.json (if present) ─────────────────────────────────
+// ── 2. Sync package-lock.json via npm install ────────────────────────────────
+// `npm install` updates the root "version" field of package-lock.json to match
+// package.json, so manifest and lockfile can no longer drift apart (Issue #19).
 
-const lockPath = path.join(ROOT, 'package-lock.json');
-if (fs.existsSync(lockPath)) {
-  const lock = readJson(lockPath);
-  lock.version = version;
-  // lockfile v2/v3: also update the root package entry
-  if (lock.packages?.['']) {
-    lock.packages[''].version = version;
-  }
-  writeJson(lockPath, lock);
-  console.log(`[release] package-lock.json updated to ${version}`);
-} else {
-  console.log('[release] package-lock.json not found – skipping.');
-}
+step('sync lockfile');
+run('npm install --no-audit --no-fund');
+console.log('[release] package-lock.json synced via npm install');
 
 // ── 3. Git commit ─────────────────────────────────────────────────────────────
 

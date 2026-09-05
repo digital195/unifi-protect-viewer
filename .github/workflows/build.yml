@@ -76,6 +76,18 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Verify version matches tag
+        if: steps.guard.outputs.run == 'true'
+        shell: bash
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::package.json version '${PKG_VERSION}' does not match tag '${GITHUB_REF_NAME}' (expected '${TAG_VERSION}')"
+            exit 1
+          fi
+          echo "Version check passed: package.json (${PKG_VERSION}) matches tag ${GITHUB_REF_NAME}"
+
       - name: Install Dependencies
         if: steps.guard.outputs.run == 'true'
         run: npm ci

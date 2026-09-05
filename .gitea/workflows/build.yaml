@@ -70,6 +70,17 @@ jobs:
         with:
           node-version: 22
 
+      - name: Verify Version Matches Tag
+        shell: bash
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "[version-check] ERROR: package.json version '${PKG_VERSION}' does not match tag '${GITHUB_REF_NAME}' (expected '${TAG_VERSION}')"
+            exit 1
+          fi
+          echo "[version-check] OK: package.json (${PKG_VERSION}) matches tag ${GITHUB_REF_NAME}"
+
       - name: Download Dependencies
         run: npm ci
 
