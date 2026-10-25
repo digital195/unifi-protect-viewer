@@ -29,21 +29,27 @@ A clean Electron app that auto-logs into your Unifi Protect instance and present
 ## Screenshots
 
 ### Liveview
+
 ![Liveview](screenshots/liveview.png)
 
 ### Profile selection
+
 ![Profile selection](screenshots/profile-selection.png)
 
 ### Configuration – Connection / Profiles
+
 ![Configuration – Connection / Profiles](screenshots/configuration-connection.png)
 
 ### Configuration – Startup
+
 ![Configuration – Startup](screenshots/configuration-startup.png)
 
 ### Loading overlay
+
 ![Loading overlay](screenshots/loading.png)
 
 ### Error page
+
 ![Error page](screenshots/wrong_configuration.png)
 
 ---
@@ -53,7 +59,7 @@ A clean Electron app that auto-logs into your Unifi Protect instance and present
 Unifi Protect Viewer supports saving **multiple profiles**. Each profile stores an independent set of:
 
 | Field            | Description                                                                     |
-|------------------|---------------------------------------------------------------------------------|
+| ---------------- | ------------------------------------------------------------------------------- |
 | **Profile name** | A label shown in the sidebar and tray menu (e.g. "Front Entrance", "Warehouse") |
 | **Liveview URL** | Full URL to your liveview (copy from the browser address bar)                   |
 | **Username**     | Unifi Protect / UnifiOS login                                                   |
@@ -66,7 +72,6 @@ Profiles can point to **different NVRs**, **different dashboards on the same NVR
 When **more than one profile** is saved and no startup profile has been set, the **profile selection screen** is shown on launch. Click any profile to start it immediately.
 
 Check **"Always start with this profile"** to skip the selection screen in the future and go straight to that profile's liveview. You can clear this preference at any time in the configuration editor.
-
 
 ### Managing profiles
 
@@ -86,7 +91,7 @@ Open the configuration editor (`F10` or tray → **Edit Configuration**).
 Start the application — the setup screen appears automatically on first launch.
 
 | Field            | Description                                                   |
-|------------------|---------------------------------------------------------------|
+| ---------------- | ------------------------------------------------------------- |
 | **Profile name** | Optional display label for this profile                       |
 | **Liveview URL** | Full URL to your liveview (copy from the browser address bar) |
 | **Username**     | Unifi Protect / UnifiOS login                                 |
@@ -95,7 +100,7 @@ Start the application — the setup screen appears automatically on first launch
 ### Edit Modes
 
 | Mode          | What changes                                               |
-|---------------|------------------------------------------------------------|
+| ------------- | ---------------------------------------------------------- |
 | **URL only**  | Updates only the liveview URL – credentials stay unchanged |
 | **Full edit** | Allows updating username and/or password                   |
 
@@ -115,16 +120,16 @@ https://192.168.1.1/protect/liveview/635e65bd000c1c0387005a5f
 
 ## Keyboard Shortcuts
 
-| Key | Action |
-|---|---|
-| `F9` | Restart the application |
+| Key   | Action                                                                   |
+| ----- | ------------------------------------------------------------------------ |
+| `F9`  | Restart the application                                                  |
 | `F10` | Open profile selection (2+ profiles) or configuration editor (1 profile) |
-| `F11` | Toggle fullscreen |
+| `F11` | Toggle fullscreen                                                        |
 
 ### F10 behaviour in detail
 
 | Context                                        | Result                             |
-|------------------------------------------------|------------------------------------|
+| ---------------------------------------------- | ---------------------------------- |
 | Liveview, 1 profile saved                      | Opens the configuration editor     |
 | Liveview, 2+ profiles saved                    | Opens the profile selection screen |
 | Configuration / profile selection / error page | Opens the configuration editor     |
@@ -137,13 +142,14 @@ Startup arguments let you control **monitor**, **fullscreen mode** and the **pro
 
 ### Available arguments
 
-| Argument              | Description                                                                 |
-|-----------------------|-----------------------------------------------------------------------------|
-| `--monitor <n>`       | Launch on monitor **n** (1 = primary, 2 = second monitor, …)               |
-| `--fullscreen`        | Start in fullscreen mode                                                    |
-| `--profile <name>`    | Load the named profile on startup (case-insensitive, exact name match)      |
+| Argument           | Description                                                            |
+| ------------------ | ---------------------------------------------------------------------- |
+| `--monitor <n>`    | Launch on monitor **n** (1 = primary, 2 = second monitor, …)           |
+| `--fullscreen`     | Start in fullscreen mode                                               |
+| `--profile <name>` | Load the named profile on startup (case-insensitive, exact name match) |
 
 **Behaviour:**
+
 - CLI arguments take **priority over saved startup settings** (they do not overwrite them).
 - If `--profile` is given but no profile with that name exists, the app falls back to the stored startup profile or the profile-selection screen as usual.
 - If `--monitor` exceeds the number of connected displays, it is clamped to the last available display.
@@ -175,7 +181,7 @@ npx electron . --monitor 2 --fullscreen --profile "Warehouse"
 ```
 
 **Windows Shortcut:**  
-Right-click your desktop shortcut → *Properties* → append the arguments to the **Target** field:
+Right-click your desktop shortcut → _Properties_ → append the arguments to the **Target** field:
 
 ```
 "C:\...\unifi-protect-viewer.exe" --monitor 2 --fullscreen --profile "Warehouse"
@@ -196,7 +202,7 @@ Set the **Program/script** to the `.exe` path and put the arguments in the **Add
 
 Right-click the system-tray icon for:
 
-**Show / Hide** · **Edit Configuration** · **Switch Profile** *(list of all saved profiles with the active one checked)* · **Restart** · **Reset & Restart** · **Quit**
+**Show / Hide** · **Edit Configuration** · **Switch Profile** _(list of all saved profiles with the active one checked)_ · **Restart** · **Reset & Restart** · **Quit**
 
 Clicking a profile in the **Switch Profile** submenu loads it immediately without restarting.
 
@@ -207,6 +213,69 @@ Clicking a profile in the **Switch Profile** submenu loads it immediately withou
 ## Installation
 
 Download a pre-built release from the Releases page, or build it yourself (see below).
+
+### macOS
+
+The release builds are ad-hoc signed. On first launch, Gatekeeper may warn that the developer cannot be verified ("unidentified developer") — expected for browser downloads, which carry a quarantine attribute:
+
+- Right-click the app → **Open** → **Open**, or
+- Remove the quarantine attribute:
+
+  ```bash
+  xattr -dr com.apple.quarantine /path/to/unifi-protect-viewer.app
+  ```
+
+> **Note:** macOS archives come from the GitHub release only. Code signing runs through `codesign`, which requires a macOS host, and the Gitea pipeline executes entirely on Linux — it does not build darwin targets at all.
+
+## Troubleshooting
+
+### Camera tiles show "Your browser doesn't support Enhanced encoding"
+
+UniFi Protect's **Enhanced encoding** means H.265/HEVC. Decoding happens in the rendering
+engine, not in this app — the Viewer is an Electron (Chromium) container and contains no
+codec logic of its own. Chromium ships **no HEVC software decoder**; HEVC only works
+through a platform decoder supplied by the operating system:
+
+| Platform | HEVC decode path   | Practical behaviour                                                           |
+| -------- | ------------------ | ----------------------------------------------------------------------------- |
+| Windows  | Media Foundation   | Works on Windows 8+ (HEVC Video Extensions on 10/11)                          |
+| macOS    | VideoToolbox       | Works on macOS 11+ (hardware; software fallback on Apple Silicon)             |
+| Linux    | VA-API / V4L2 only | **No software fallback** — only works when the GPU driver exposes HEVC decode |
+
+On Linux the result depends on the graphics stack, not on the Viewer version:
+
+- Mesa's VA-API is commonly built **without** H.264/H.265 codecs for patent reasons
+  (`-Dvideo-codecs`). Check what your driver actually reports:
+
+  ```bash
+  vainfo | grep -i hevc      # package: libva-utils
+  ```
+
+- Intel: the full-feature driver (`intel-media-va-driver-non-free`) is required — the
+  free-kernel build (`intel-media-va-driver`) is limited.
+- NVIDIA: VA-API is not supported by Chromium by default (NVDEC is not wired up), so HEVC
+  does not work on NVIDIA GPUs on Linux.
+- Chromium's Linux VA-API path is feature-flag gated (`AcceleratedVideoDecodeLinuxGL`) and
+  officially best-effort. Even a capable driver may fall back to software decode, which then
+  has no HEVC decoder at all.
+
+**Practical options for Linux kiosk setups**
+
+1. Set the affected cameras to **Standard (H.264)** — Protect → Camera settings → Recording → Encoding.
+2. Or run the kiosk in **Firefox (≥ 137)**, which can decode HEVC on Linux through the system FFmpeg.
+3. Only if `vainfo` lists HEVC decode entry points is it worth trying Electron with the VA-API flags.
+
+Codec capability is logged on every start, so this can be answered from the log alone:
+
+```text
+2026-10-23T13:21:03.112Z [upv app] runtime: electron 42.11.18 / chromium 148.0.7778.280 on linux
+2026-10-23T13:21:05.902Z [upv window] [upv] codec probe: {"hvc1.1.6.L93.B0":{"canPlayType":"no","mse":false},"hev1.1.6.L93.B0":{"canPlayType":"no","mse":false},"mcap":{"supported":false,"powerEfficient":false}} platform:linux
+2026-10-23T13:21:05.902Z [upv window] [upv] HEVC not decodable here – Enhanced encoding cameras will fail
+```
+
+> **Note on capability checks:** incomplete codec IDs (`"hvc1"`, `"hev1"`) are always rejected
+> by Chromium, so a bare ID test reports "unsupported" even on machines that can decode. Only
+> the full profile/level/tier ID gives a real answer.
 
 ---
 
@@ -238,6 +307,7 @@ npm run build:linux:arm64:portable
 ```
 
 All output lands in `builds/` and is automatically renamed to include the version:
+
 ```
 builds/unifi-protect-viewer-win32-x64-1.0.0/
 builds/unifi-protect-viewer-win32-x64-1.0.0-portable/
@@ -248,15 +318,17 @@ builds/unifi-protect-viewer-linux-arm64-1.0.0-portable/
 
 All build options are controlled via environment variables — no source files need to be changed.
 
-| Variable | Default | Description |
-|---|---|---|
-| `UPV_PLATFORM` | host platform | `win32` · `darwin` · `linux` |
-| `UPV_ARCH` | host arch | `x64` · `ia32` · `arm64` |
-| `UPV_PORTABLE` | `false` | `true` → portable build |
-| `UPV_OUT_DIR` | `builds` | output directory |
-| `UPV_ENCRYPTION_KEY` | `****` | encryption key for portable config store |
+| Variable                | Default       | Description                                                                      |
+| ----------------------- | ------------- | -------------------------------------------------------------------------------- |
+| `UPV_PLATFORM`          | host platform | `win32` · `darwin` · `linux`                                                     |
+| `UPV_ARCH`              | host arch     | `x64` · `ia32` · `arm64`                                                         |
+| `UPV_PORTABLE`          | `false`       | `true` → portable build                                                          |
+| `UPV_OUT_DIR`           | `builds`      | output directory                                                                 |
+| `UPV_ENCRYPTION_KEY`    | `****`        | encryption key for portable config store                                         |
+| `UPV_MAC_SIGN_IDENTITY` | `-`           | macOS signing identity (`-` = ad-hoc; set a Developer ID value for real signing) |
 
 **PowerShell example:**
+
 ```powershell
 $env:UPV_PLATFORM="linux"; $env:UPV_ARCH="arm64"; $env:UPV_PORTABLE="true"
 node scripts/build.js
@@ -324,11 +396,11 @@ Each profile is stored as a JSON object in the encrypted config store:
       "name": "Living Room NVR",
       "url": "https://192.168.1.1/protect/dashboard/635e…",
       "username": "admin",
-      "password": "<encrypted>"
-    }
+      "password": "<encrypted>",
+    },
   ],
-  "activeProfileId": "uuid-v4",   // currently loaded profile
-  "startupProfileId": "uuid-v4"   // auto-selected on launch (null = show selector)
+  "activeProfileId": "uuid-v4", // currently loaded profile
+  "startupProfileId": "uuid-v4", // auto-selected on launch (null = show selector)
 }
 ```
 
@@ -350,12 +422,6 @@ All automation steps emit `[upv]`-prefixed log messages so you can follow every 
 ## License
 
 [MIT](LICENSE) © 2026 Sebastian Loer — use it however you like, commercially or otherwise. Attribution appreciated.
-
----
-
-## AI Disclosure
-
-The refactoring, feature additions and documentation of this project were developed with the assistance of **Claude Sonnet 4.6** (Anthropic) via GitHub Copilot.
 
 ---
 

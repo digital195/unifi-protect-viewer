@@ -6,8 +6,9 @@
  *              handlers, and creates the main window.
  */
 
-const { app, Menu } = require('electron');
+const { app } = require('electron');
 const { registerIpcHandlers } = require('./ipc');
+const { installApplicationMenu } = require('./menu');
 const { createMainWindow } = require('./window');
 const { createLogger, LOG_SOURCE_APP } = require('./logger');
 const { parseCliArgs } = require('./cli');
@@ -15,9 +16,6 @@ const { parseCliArgs } = require('./cli');
 // ── Certificate handling ──────────────────────────────────────────────────────
 // Unifi Protect commonly uses self-signed certificates, so we skip TLS errors.
 app.commandLine.appendSwitch('ignore-certificate-errors', 'true');
-
-// ── Remove default menu (disables native F11 accelerator and menu bar) ────────
-Menu.setApplicationMenu(null);
 
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 
@@ -31,6 +29,15 @@ app.whenReady().then(async () => {
   // Initialise persistent logger (requires userData path → must be inside whenReady)
   _logger = createLogger({ app });
   _logger.log(LOG_SOURCE_APP, 'app ready – starting up');
+  _logger.log(
+    LOG_SOURCE_APP,
+    `runtime: electron ${process.versions.electron} / chromium ${process.versions.chrome} on ${process.platform}`,
+  );
+
+  // The application menu carries the clipboard accelerators (select all, copy, paste).
+  // Without a menu those key equivalents have no handler on macOS. The template is
+  // minimal (Edit only) so the kiosk UI stays free of menu chrome.
+  installApplicationMenu(getLogger);
 
   // Parse CLI startup arguments (runtime-only overrides, not persisted to store)
   const cliArgs = parseCliArgs();

@@ -126,6 +126,19 @@ jobs:
           echo "dir_name=${DIR_NAME}"         >> "$GITHUB_OUTPUT"
           echo "archive_name=${ARCHIVE_NAME}" >> "$GITHUB_OUTPUT"
 
+      # Hard gate: an invalid or missing code signature must not end up in a release.
+      # --deep --strict passes for a valid ad-hoc bundle signature, so this catches
+      # the unsealed case (build.js sets continueOnError: false, so signing errors
+      # already fail the build before this step).
+      - name: Verify macOS code signature
+        if: steps.guard.outputs.run == 'true' && matrix.platform == 'darwin'
+        shell: bash
+        run: |
+          APP_DIR="$OUT_DIR/${{ steps.resolve.outputs.dir_name }}/unifi-protect-viewer.app"
+          echo "Verifying code signature of ${APP_DIR} …"
+          codesign --verify --deep --strict "${APP_DIR}"
+          codesign -dvv "${APP_DIR}" 2>&1 | head -n 20
+
       - name: Create Archive
         if: steps.guard.outputs.run == 'true'
         shell: bash

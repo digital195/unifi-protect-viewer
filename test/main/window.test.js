@@ -36,6 +36,7 @@ let mockStoreInstance;
 
 let createTrayCalls = [];
 let registerF11HandlerCalls = [];
+let registerFullscreenWatcherCalls = [];
 
 const storeApi = {
   getProfiles: () => mockStoreInstance.get('profiles', []),
@@ -61,6 +62,9 @@ const trayMock = {
 const ipcMock = {
   registerF11Handler: (win) => {
     registerF11HandlerCalls.push(win);
+  },
+  registerFullscreenWatcher: (win) => {
+    registerFullscreenWatcherCalls.push(win);
   },
 };
 
@@ -95,6 +99,7 @@ describe('window.js – module boundary contract', () => {
     mockStoreInstance = new MockStore();
     createTrayCalls = [];
     registerF11HandlerCalls = [];
+    registerFullscreenWatcherCalls = [];
     resetElectronMocks();
     installElectronMock();
     installMocks();
@@ -125,6 +130,7 @@ describe('window.js – BrowserWindow constructor options', () => {
     mockStoreInstance = new MockStore();
     createTrayCalls = [];
     registerF11HandlerCalls = [];
+    registerFullscreenWatcherCalls = [];
     resetElectronMocks();
     installElectronMock();
     installMocks();
@@ -244,6 +250,13 @@ describe('window.js – BrowserWindow constructor options', () => {
     assert.strictEqual(registerF11HandlerCalls[0], win);
   });
 
+  test('registerFullscreenWatcher is called with the created window', async () => {
+    const { createMainWindow } = requireFreshWindow();
+    const win = await createMainWindow();
+    assert.strictEqual(registerFullscreenWatcherCalls.length, 1);
+    assert.strictEqual(registerFullscreenWatcherCalls[0], win);
+  });
+
   test('createMainWindow returns a Promise', () => {
     const { createMainWindow } = requireFreshWindow();
     const result = createMainWindow();
@@ -267,6 +280,7 @@ describe('window.js – loadInitialPage routing', () => {
     mockStoreInstance = new MockStore();
     createTrayCalls = [];
     registerF11HandlerCalls = [];
+    registerFullscreenWatcherCalls = [];
     resetElectronMocks();
     installElectronMock();
     installMocks();
@@ -409,6 +423,7 @@ describe('window.js – window lifecycle events', () => {
     mockStoreInstance = new MockStore();
     createTrayCalls = [];
     registerF11HandlerCalls = [];
+    registerFullscreenWatcherCalls = [];
     resetElectronMocks();
     installElectronMock();
     installMocks();
@@ -548,6 +563,7 @@ describe('window.js – did-fail-load handler', () => {
     mockStoreInstance = new MockStore();
     createTrayCalls = [];
     registerF11HandlerCalls = [];
+    registerFullscreenWatcherCalls = [];
     resetElectronMocks();
     installElectronMock();
     installMocks();
@@ -673,6 +689,7 @@ describe('window.js – CLI --profile override', () => {
     mockStoreInstance = new MockStore();
     createTrayCalls = [];
     registerF11HandlerCalls = [];
+    registerFullscreenWatcherCalls = [];
     resetElectronMocks();
     installElectronMock();
     installMocks();
@@ -773,6 +790,7 @@ describe('window.js – CLI --monitor and --fullscreen override', () => {
     mockStoreInstance = new MockStore();
     createTrayCalls = [];
     registerF11HandlerCalls = [];
+    registerFullscreenWatcherCalls = [];
     resetElectronMocks();
     installElectronMock();
     installMocks();

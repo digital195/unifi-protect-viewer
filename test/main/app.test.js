@@ -11,13 +11,14 @@
  * Guarantees:
  *  - Certificate error suppression switch is applied with exact argument
  *  - appendSwitch is called exactly once (no extra switches)
- *  - Menu is set to null (disables native F11 accelerator)
+ *  - Application menu is installed for the clipboard accelerators (delegated to menu.js)
  *  - electron-reloader failure is silently ignored
  *  - registerIpcHandlers is called BEFORE createMainWindow (order enforced)
  *  - whenReady triggers registerIpcHandlers and createMainWindow
  *  - window-all-closed quits on non-darwin, stays on darwin
  *  - activate creates a new window only when none exist
  *  - app.js exports nothing (no public API)
+ *  - runtime versions are logged at startup for issue triage
  */
 
 const { test, describe, beforeEach, afterEach } = require('node:test');
@@ -38,6 +39,7 @@ let registerIpcHandlersCalled = false;
 let createMainWindowCalled = false;
 let createMainWindowCount = 0;
 let callOrder = [];
+let menuGetLogger = null;
 
 const ipcMock = {
   registerIpcHandlers: () => {
@@ -55,6 +57,13 @@ const windowMock = {
   },
 };
 
+const menuMock = {
+  installApplicationMenu: (getLogger) => {
+    menuGetLogger = getLogger;
+    callOrder.push('installApplicationMenu');
+  },
+};
+
 const originalLoad = Module._load;
 
 function installMocks() {
@@ -62,6 +71,7 @@ function installMocks() {
     if (request === 'electron') return require('../helpers/mock-electron').electronMock;
     if (request === './ipc') return ipcMock;
     if (request === './window') return windowMock;
+    if (request === './menu') return menuMock;
     if (request === 'electron-reloader') throw new Error('not available');
     return originalLoad.call(this, request, parent, isMain);
   };
@@ -155,13 +165,21 @@ describe('app.js – startup side effects', () => {
     assert.strictEqual(calls[0].val, 'true');
   });
 
-  test('Menu.setApplicationMenu is called with null', () => {
-    let lastArg = 'NOT_CALLED';
+  test('application menu is installed via menu.js, not suppressed with null', async () => {
+    const menuCalls = [];
     require('../helpers/mock-electron').electronMock.Menu.setApplicationMenu = (menu) => {
-      lastArg = menu;
+      menuCalls.push(menu);
     };
+
     requireFreshApp();
-    assert.strictEqual(lastArg, null, 'Menu.setApplicationMenu must be called with null');
+    assert.ok(
+      !callOrder.includes('installApplicationMenu'),
+      'menu installation must not run at import time',
+    );
+    await new Promise((r) => setImmediate(r));
+
+    assert.ok(callOrder.includes('installApplicationMenu'), 'app.js must install the menu');
+    assert.ok(!menuCalls.includes(null), 'the application menu must not be set to null');
   });
 
   test('electron-reloader failure is silently ignored (no throw)', () => {
@@ -210,6 +228,29 @@ describe('app.js – whenReady call order', () => {
     assert.ok(ipcIdx !== -1, 'registerIpcHandlers must be called');
     assert.ok(winIdx !== -1, 'createMainWindow must be called');
     assert.ok(ipcIdx < winIdx, 'registerIpcHandlers must be called before createMainWindow');
+  });
+
+  test('installApplicationMenu is called BEFORE registerIpcHandlers', async () => {
+    requireFreshApp();
+    await new Promise((r) => setImmediate(r));
+    const menuIdx = callOrder.indexOf('installApplicationMenu');
+    const ipcIdx = callOrder.indexOf('registerIpcHandlers');
+    assert.ok(menuIdx !== -1, 'installApplicationMenu must be called');
+    assert.ok(ipcIdx !== -1, 'registerIpcHandlers must be called');
+    assert.ok(menuIdx < ipcIdx, 'installApplicationMenu must be called before registerIpcHandlers');
+  });
+
+  test('installApplicationMenu receives the app logger factory', async () => {
+    menuGetLogger = null;
+    requireFreshApp();
+    await new Promise((r) => setImmediate(r));
+
+    assert.ok(
+      typeof menuGetLogger === 'function',
+      'app.js must pass its logger factory to menu.js',
+    );
+    const logger = menuGetLogger();
+    assert.ok(logger && typeof logger.log === 'function', 'logger must exist at menu install');
   });
 });
 
@@ -336,5 +377,60 @@ describe('app.js – activate (macOS re-open)', () => {
       countAfterStart,
       'createMainWindow must not be called when a window already exists',
     );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RUNTIME VERSION LOG CONTRACT
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('app.js – runtime version log at startup', () => {
+  beforeEach(() => {
+    resetElectronMocks();
+    installElectronMock();
+    installMocks();
+  });
+
+  afterEach(() => {
+    uninstallMocks();
+    uninstallElectronMock();
+    delete require.cache[require.resolve('../../src/main/app')];
+  });
+
+  test('logs the electron / chromium / platform versions inside whenReady', async () => {
+    const messages = [];
+    const loggerMock = {
+      log: (_source, message) => messages.push(message),
+      getLogPath: () => null,
+    };
+
+    // app.js requires './logger' inside whenReady – patched for this test only
+    const patchedLoad = Module._load;
+    Module._load = function (request, parent, isMain) {
+      if (request === './logger') {
+        return {
+          createLogger: () => loggerMock,
+          LOG_SOURCE_APP: 'app',
+          LOG_SOURCE_WINDOW: 'window',
+        };
+      }
+      return patchedLoad.call(this, request, parent, isMain);
+    };
+
+    try {
+      requireFreshApp();
+      await new Promise((r) => setImmediate(r));
+    } finally {
+      Module._load = patchedLoad;
+    }
+
+    const runtimeLine = messages.find((m) => m.startsWith('runtime: electron '));
+    assert.ok(runtimeLine, 'app.js must log the runtime versions at startup');
+    assert.ok(
+      runtimeLine.includes(process.versions.electron) &&
+        runtimeLine.includes(process.versions.chrome),
+      'runtime line must include both the electron and chromium versions',
+    );
+    assert.ok(runtimeLine.includes(process.platform), 'runtime line must include the platform');
   });
 });

@@ -26,6 +26,7 @@ const {
   resetElectronMocks,
   getIpcMainHandlers,
   getIpcMainHandleHandlers,
+  getWebContentsSentMessages,
   app,
   BrowserWindow,
   shell,
@@ -133,11 +134,12 @@ describe('ipc.js – module boundary contract', () => {
     uninstallElectronMock();
   });
 
-  test('exports exactly { makeWindowLogHandler, registerF11Handler, registerIpcHandlers }', () => {
+  test('exports exactly { makeWindowLogHandler, registerF11Handler, registerFullscreenWatcher, registerIpcHandlers }', () => {
     const mod = requireFreshIpc();
     assert.deepStrictEqual(Object.keys(mod).sort(), [
       'makeWindowLogHandler',
       'registerF11Handler',
+      'registerFullscreenWatcher',
       'registerIpcHandlers',
     ]);
   });
@@ -204,6 +206,7 @@ describe('ipc.js – registerIpcHandlers registers exact channel set', () => {
       'activeProfileGet',
       'configLoad',
       'displaysGet',
+      'fullscreenGet',
       'profilesLoad',
       'startupProfileGet',
       'startupSettingsGet',
@@ -594,6 +597,28 @@ describe('ipc.js – handler implementations', () => {
   test('toggleFullscreen: does nothing when no window found', () => {
     BrowserWindow.fromWebContents = () => null;
     assert.doesNotThrow(() => handlers['toggleFullscreen']({ sender: {} }));
+  });
+
+  // ── fullscreenGet ──────────────────────────────────────────────────────────
+
+  test('fullscreenGet: returns true when the sender window is fullscreen', async () => {
+    win._fullscreen = true;
+    assert.strictEqual(await handleHandlers['fullscreenGet'](makeEvent(win)), true);
+  });
+
+  test('fullscreenGet: returns false when the sender window is windowed', async () => {
+    win._fullscreen = false;
+    assert.strictEqual(await handleHandlers['fullscreenGet'](makeEvent(win)), false);
+  });
+
+  test('fullscreenGet: returns false when no window is found for the sender', async () => {
+    BrowserWindow.fromWebContents = () => null;
+    assert.strictEqual(await handleHandlers['fullscreenGet']({ sender: {} }), false);
+  });
+
+  test('fullscreenGet: returns a Promise', () => {
+    const result = handleHandlers['fullscreenGet'](makeEvent(win));
+    assert.strictEqual(typeof result.then, 'function');
   });
 
   // ── profilesLoad ─────────────────────────────────────────────────────────
@@ -1067,5 +1092,89 @@ describe('ipc.js – makeWindowLogHandler', () => {
     const handlers = getIpcMainHandlers();
     assert.ok('upv:log' in handlers, '"upv:log" channel must be registered');
     assert.strictEqual(typeof handlers['upv:log'], 'function');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// registerFullscreenWatcher CONTRACT
+// The window fullscreen state is an OS state the renderer cannot observe through
+// document.fullscreenElement, so the main process pushes it on every change.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ipc.js – registerFullscreenWatcher (main → renderer push)', () => {
+  let win;
+  let logCalls;
+
+  beforeEach(() => {
+    mockStoreInstance = new MockStore();
+    resetElectronMocks();
+    installElectronMock();
+    installMocks();
+
+    logCalls = [];
+    const { registerIpcHandlers, registerFullscreenWatcher } = requireFreshIpc();
+    registerIpcHandlers(() => ({ log: (source, msg) => logCalls.push({ source, msg }) }));
+
+    win = new BrowserWindow({ width: 800, height: 600 });
+    registerFullscreenWatcher(win);
+  });
+
+  afterEach(() => {
+    uninstallMocks();
+    uninstallElectronMock();
+  });
+
+  test('registerFullscreenWatcher is exported and is a function', () => {
+    const mod = requireFreshIpc();
+    assert.strictEqual(typeof mod.registerFullscreenWatcher, 'function');
+  });
+
+  test('enter-full-screen pushes fullscreenChanged with true', () => {
+    win._fullscreen = true;
+    win.emit('enter-full-screen');
+    assert.deepStrictEqual(getWebContentsSentMessages(), [
+      { channel: 'fullscreenChanged', args: [true] },
+    ]);
+  });
+
+  test('leave-full-screen pushes fullscreenChanged with false', () => {
+    win._fullscreen = false;
+    win.emit('leave-full-screen');
+    assert.deepStrictEqual(getWebContentsSentMessages(), [
+      { channel: 'fullscreenChanged', args: [false] },
+    ]);
+  });
+
+  test('the push channel name is exactly "fullscreenChanged"', () => {
+    win._fullscreen = true;
+    win.emit('enter-full-screen');
+    assert.strictEqual(getWebContentsSentMessages()[0].channel, 'fullscreenChanged');
+  });
+
+  test('the state change is logged with the window source', () => {
+    win._fullscreen = true;
+    win.emit('enter-full-screen');
+    assert.strictEqual(logCalls.length, 1);
+    assert.strictEqual(logCalls[0].source, 'window');
+    assert.ok(
+      logCalls[0].msg.includes('fullscreen state changed: true'),
+      'got: ' + logCalls[0].msg,
+    );
+  });
+
+  test('does not throw when the renderer cannot be reached (swallow and continue)', () => {
+    win.webContents.send = () => {
+      throw new Error('Render process destroyed');
+    };
+    win._fullscreen = true;
+    assert.doesNotThrow(() => win.emit('enter-full-screen'));
+  });
+
+  test('does not throw when no logger is registered', () => {
+    const { registerFullscreenWatcher } = requireFreshIpc();
+    const orphan = new BrowserWindow({ width: 800, height: 600 });
+    registerFullscreenWatcher(orphan);
+    orphan._fullscreen = true;
+    assert.doesNotThrow(() => orphan.emit('enter-full-screen'));
   });
 });

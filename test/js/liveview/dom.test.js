@@ -12,6 +12,7 @@
  *  - activateDarkTheme: selector contracts, two-step click flow
  *  - resolveProtectVersion: version parsing, fallback to '3.x'
  *  - dismissAllModals: portal detection, SVG click
+ *  - fullscreen gate: gate-scoped overlay rules, documentElement class toggle
  *
  * No jsdom. No browser. Pure node:test + node:assert/strict.
  * Mocks simulate only what each function directly touches.
@@ -38,6 +39,8 @@ const preloadSource = fs.readFileSync(
  * Returns a handle to the sandbox so tests can inspect state after execution.
  */
 function runInSandbox(overrides = {}) {
+  const ipcOnCalls = [];
+  const invokedChannels = [];
   const sandbox = {
     // required by contextBridge / ipcRenderer at module top level
     require: (mod) => {
@@ -46,7 +49,13 @@ function runInSandbox(overrides = {}) {
           contextBridge: { exposeInMainWorld: () => {} },
           ipcRenderer: {
             send: () => {},
-            invoke: () => Promise.resolve(undefined),
+            invoke: (channel, ...args) => {
+              invokedChannels.push(channel);
+              return Promise.resolve(undefined);
+            },
+            on: (channel, handler) => {
+              ipcOnCalls.push({ channel, handler });
+            },
           },
         };
       }
@@ -56,6 +65,7 @@ function runInSandbox(overrides = {}) {
     window: { addEventListener: () => {} },
     document: {
       URL: 'https://cam.local/protect/dashboard',
+      documentElement: makeEl('html'),
       getElementById: () => null,
       createElement: (tag) => makeEl(tag),
       getElementsByTagName: () => [],
@@ -100,6 +110,8 @@ function runInSandbox(overrides = {}) {
   } catch (_) {
     // DOM side-effects during init may throw in sandbox – expected
   }
+  sandbox.__ipcOnCalls = ipcOnCalls;
+  sandbox.__invokedChannels = invokedChannels;
   return sandbox;
 }
 
@@ -121,6 +133,12 @@ function makeEl(tag = 'div') {
       },
       contains: function (c) {
         return this._classes.has(c);
+      },
+      toggle: function (c, force) {
+        const shouldAdd = force === undefined ? !this._classes.has(c) : Boolean(force);
+        if (shouldAdd) this._classes.add(c);
+        else this._classes.delete(c);
+        return shouldAdd;
       },
     },
     style: {},
@@ -1093,6 +1111,7 @@ describe('preload.js – liveview v4+ selector contracts', () => {
     '[data-testid="option"]',
     '[class^=LiveViewGridSlot__PlayerOptions] [class^=PlayerTopLeftControls__ButtonGroup]',
     '[class^=ViewportError__Wrapper]',
+    '[class*=LiveviewControls__LiveControlsContainer]',
   ];
 
   for (const sel of V4_SELECTORS) {
@@ -1160,6 +1179,180 @@ describe('preload.js – liveview v4+ selector contracts', () => {
       preloadSource.includes("'backgroundColor', 'black'"),
       'v4+ must set backgroundColor to "black" for error slots',
     );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// § V4+ LIVEVIEW OVERLAYS – FULLSCREEN GATE (GitHub issue #22)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('preload.js – liveview v4+ overlays gated on window fullscreen (issue #22)', () => {
+  /**
+   * The controls bar, the per-slot option buttons and the timeline button group are
+   * hidden only while the Electron window is fullscreen. In windowed mode Protect's
+   * own hover behaviour must apply, so every hiding rule is scoped to the gate class
+   * on documentElement. Those elements must not be styled inline at all: an inline
+   * style wins over a gated rule even when the gate is inactive.
+   */
+  function buildGateFixture() {
+    const persistedStyle = makeEl('style');
+    const documentElement = makeEl('html');
+    const controlsEl = makeEl('div');
+    const optionEl = makeEl('div');
+    const timelineEl = makeEl('div');
+    const fullscreenWrapper = makeEl('div');
+
+    controlsEl.classList.add('LiveviewControls__LiveControlsContainer-sc-hdlmsl-1');
+    fullscreenWrapper.classList.add('liveView__FullscreenWrapper-sc-o64eat-3');
+
+    const logs = [];
+    const headAppended = [];
+    let styleAttached = false;
+
+    const sandbox = runInSandbox({
+      document: {
+        URL: 'https://cam.local/protect/dashboard',
+        documentElement,
+        // The style tag only resolves once it is attached, as in a real document.
+        getElementById: (id) =>
+          id === '__upv_persisted_rules' && styleAttached ? persistedStyle : null,
+        createElement: (tag) => (tag === 'style' ? persistedStyle : makeEl(tag)),
+        getElementsByTagName: () => [],
+        getElementsByClassName: () => ({ length: 0 }),
+        getElementsByName: () => [undefined],
+        querySelectorAll: (selector) => {
+          if (selector.includes('LiveviewControls__LiveControlsContainer')) {
+            return makeNodeList([controlsEl]);
+          }
+          if (selector.includes('data-testid="option"')) {
+            return makeNodeList([optionEl]);
+          }
+          if (selector.includes('PlayerTopLeftControls__ButtonGroup')) {
+            return makeNodeList([timelineEl]);
+          }
+          if (selector.includes('liveView__FullscreenWrapper')) {
+            return makeNodeList([fullscreenWrapper]);
+          }
+          return makeNodeList([]);
+        },
+        querySelector: () => null,
+        head: {
+          appendChild: (el) => {
+            headAppended.push(el);
+            if (el === persistedStyle) styleAttached = true;
+          },
+        },
+        body: { appendChild: () => {}, style: {}, insertAdjacentHTML: () => {} },
+      },
+      console: {
+        log: (...args) => logs.push(args.map(String).join(' ')),
+        warn: () => {},
+        error: () => {},
+      },
+    });
+
+    return {
+      sandbox,
+      persistedStyle,
+      headAppended,
+      logs,
+      documentElement,
+      controlsEl,
+      optionEl,
+      timelineEl,
+    };
+  }
+
+  const OVERLAY_SELECTORS = [
+    '[class*=LiveviewControls__LiveControlsContainer]',
+    '[data-testid="option"]',
+    '[class^=LiveViewGridSlot__PlayerOptions] [class^=PlayerTopLeftControls__ButtonGroup]',
+  ];
+
+  test('overlay rules are scoped to the fullscreen gate, not written ungated', async () => {
+    const { sandbox, persistedStyle, headAppended } = buildGateFixture();
+    await sandbox.applyLiveviewV4andNewer();
+
+    assert.ok(
+      headAppended.includes(persistedStyle),
+      'overlay rules must live in a <style> tag in document.head (inline styles are lost on React re-mount)',
+    );
+
+    const rules = persistedStyle.textContent.split('\n');
+    const hidingRules = rules.filter((rule) => rule.includes('display:none!important'));
+    assert.strictEqual(
+      hidingRules.length,
+      OVERLAY_SELECTORS.length,
+      'one gated rule per overlay expected, got: ' + persistedStyle.textContent,
+    );
+
+    for (const rule of hidingRules) {
+      assert.ok(
+        rule.startsWith('html.upv-fullscreen '),
+        'windowed mode must keep Protect behaviour, so the rule needs the gate: ' + rule,
+      );
+    }
+
+    for (const selector of OVERLAY_SELECTORS) {
+      assert.ok(
+        persistedStyle.textContent.includes(selector),
+        'the persisted rules must cover the overlay selector ' + selector,
+      );
+    }
+  });
+
+  test('the gate follows the fullscreen state reported by the main process', async () => {
+    const { sandbox, documentElement, logs } = buildGateFixture();
+    await sandbox.applyLiveviewV4andNewer();
+
+    assert.ok(
+      sandbox.__invokedChannels.includes('fullscreenGet'),
+      'the initial fullscreen state must be read from the main process',
+    );
+
+    const subscriptions = sandbox.__ipcOnCalls.filter(
+      (call) => call.channel === 'fullscreenChanged',
+    );
+    assert.strictEqual(
+      subscriptions.length,
+      1,
+      'the fullscreen push channel must be subscribed exactly once (guarded watcher)',
+    );
+
+    assert.ok(
+      logs.some((line) => line.startsWith('[upv] v4+:') && line.includes('fullscreen gate')),
+      'installing the gate must be logged with the [upv] prefix, got: ' + JSON.stringify(logs),
+    );
+
+    const handler = subscriptions[0].handler;
+    handler({}, true);
+    assert.ok(
+      documentElement.classList.contains('upv-fullscreen'),
+      'entering fullscreen must activate the gate on documentElement',
+    );
+
+    handler({}, false);
+    assert.ok(
+      !documentElement.classList.contains('upv-fullscreen'),
+      'leaving fullscreen must release the gate so windowed mode shows the overlays again',
+    );
+  });
+
+  test('gate-scoped overlays are not hidden through inline styles', async () => {
+    const { sandbox, controlsEl, optionEl, timelineEl } = buildGateFixture();
+    await sandbox.applyLiveviewV4andNewer();
+
+    assert.ok(
+      !preloadSource.includes("applyStyle(btn, 'display', 'none')"),
+      'a gated overlay cannot be hidden inline – an inline style wins over the gated rule',
+    );
+
+    for (const el of [controlsEl, optionEl, timelineEl]) {
+      assert.ok(
+        !('display' in el.style),
+        'overlay elements must keep their own display so windowed mode shows them again',
+      );
+    }
   });
 });
 
@@ -1388,5 +1581,142 @@ describe('preload.js – installConsoleLogOverride', () => {
       preloadSource.includes('_originalConsoleWarn'),
       'preload must preserve original console.warn',
     );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// § CODEC CAPABILITY PROBE
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('preload.js – codec capability probe', () => {
+  function probeSandbox(fakes) {
+    const logs = [];
+    const warns = [];
+
+    const doc = {
+      URL: 'https://cam.local/protect/dashboard',
+      createElement: (tag) =>
+        tag === 'video' ? { canPlayType: (type) => fakes.canPlayType(type) } : makeEl(tag),
+      getElementById: () => null,
+      getElementsByTagName: () => [],
+      getElementsByClassName: () => ({ length: 0 }),
+      getElementsByName: () => [undefined],
+      querySelectorAll: () => makeNodeList([]),
+      querySelector: () => null,
+      head: { appendChild: () => {} },
+      body: { appendChild: () => {}, style: {}, insertAdjacentHTML: () => {} },
+    };
+
+    const sandbox = runInSandbox({
+      ...(fakes.sandboxOverrides || {}),
+      document: doc,
+      console: {
+        log: (...args) => logs.push(args.map(String).join(' ')),
+        warn: (...args) => warns.push(args.map(String).join(' ')),
+        error: () => {},
+      },
+      window: { addEventListener: () => {} },
+    });
+
+    return { sandbox, logs, warns };
+  }
+
+  test('uses complete HEVC codec ids (incomplete ids are always rejected by Chromium)', () => {
+    assert.ok(
+      preloadSource.includes("const HEVC_CODEC_IDS = ['hvc1.1.6.L93.B0', 'hev1.1.6.L93.B0']"),
+      'HEVC_CODEC_IDS must contain complete profile/level/tier ids',
+    );
+    assert.ok(
+      !preloadSource.includes('codecs="hvc1"') && !preloadSource.includes('codecs="hev1"'),
+      'bare codec ids always report unsupported in Chromium – the probe must not use them',
+    );
+  });
+
+  test('logs with the [upv] prefix so the message reaches upv.log', () => {
+    assert.ok(
+      preloadSource.includes("'[upv] codec probe:'"),
+      'probe must log with the [upv] prefix for IPC log forwarding',
+    );
+  });
+
+  test('runs the probe from the liveview automation startup', () => {
+    assert.ok(
+      preloadSource.includes('await logCodecCapability()'),
+      'startLiveviewAutomation must run the codec probe at startup',
+    );
+  });
+
+  test('MediaSource and navigator access are guarded', () => {
+    assert.ok(
+      preloadSource.includes("typeof MediaSource !== 'undefined'"),
+      'probe must guard MediaSource',
+    );
+    assert.ok(
+      preloadSource.includes("typeof navigator !== 'undefined'"),
+      'probe must guard navigator',
+    );
+  });
+
+  test('reference copy src/js/liveview/utils.js contains the same probe (no drift)', () => {
+    const utilsSource = fs.readFileSync(
+      path.resolve(__dirname, '../../../src/js/liveview/utils.js'),
+      'utf8',
+    );
+    assert.ok(
+      utilsSource.includes('async function logCodecCapability()'),
+      'utils.js reference copy must contain the codec probe',
+    );
+    assert.ok(
+      utilsSource.includes("const HEVC_CODEC_IDS = ['hvc1.1.6.L93.B0', 'hev1.1.6.L93.B0']"),
+      'utils.js reference copy must use the same codec ids',
+    );
+  });
+
+  test('records canPlayType and MediaSource results and warns when HEVC cannot decode', async () => {
+    const { sandbox, logs, warns } = probeSandbox({
+      canPlayType: () => '',
+      sandboxOverrides: { MediaSource: { isTypeSupported: () => false } },
+    });
+
+    await sandbox.logCodecCapability();
+
+    const line = logs.find((l) => l.startsWith('[upv] codec probe:'));
+    assert.ok(line, 'probe must log a codec probe line');
+    assert.ok(line.includes('"canPlayType":"no"'), 'probe must record the canPlayType result');
+    assert.ok(line.includes('"mse":false'), 'probe must record the MediaSource result');
+    assert.ok(
+      warns.some((w) => w.startsWith('[upv] HEVC not decodable here')),
+      'probe must warn when HEVC is not decodable at all',
+    );
+  });
+
+  test('does not warn when the platform can decode HEVC, and logs the platform', async () => {
+    const { sandbox, logs, warns } = probeSandbox({
+      canPlayType: (type) => (type.includes('hvc1.1.6.L93.B0') ? 'probably' : ''),
+      sandboxOverrides: {
+        MediaSource: { isTypeSupported: (type) => type.includes('hvc1.1.6.L93.B0') },
+        navigator: {
+          platform: 'Linux x86_64',
+          mediaCapabilities: {
+            decodingInfo: async () => ({ supported: true, smooth: true, powerEfficient: true }),
+          },
+        },
+      },
+    });
+
+    await sandbox.logCodecCapability();
+
+    const line = logs.find((l) => l.startsWith('[upv] codec probe:'));
+    assert.ok(line.includes('Linux x86_64'), 'probe line must include the platform');
+    assert.ok(
+      line.includes('"powerEfficient":true'),
+      'probe must record MediaCapabilities powerEfficient (hardware decoder)',
+    );
+    assert.strictEqual(warns.length, 0, 'no warning when HEVC is decodable');
+  });
+
+  test('does not reject when MediaSource and navigator are unavailable', async () => {
+    const { sandbox } = probeSandbox({ canPlayType: () => '' });
+    await assert.doesNotReject(() => sandbox.logCodecCapability());
   });
 });

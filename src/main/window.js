@@ -9,7 +9,7 @@ const { BrowserWindow, screen } = require('electron');
 const path = require('node:path');
 const store = require('./store');
 const { createTray } = require('./tray');
-const { registerF11Handler } = require('./ipc');
+const { registerF11Handler, registerFullscreenWatcher } = require('./ipc');
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -270,6 +270,7 @@ async function createMainWindow(cliArgs = {}) {
 
   createTray(win);
   registerF11Handler(win);
+  registerFullscreenWatcher(win);
 
   // On main-frame load failure → show the error page immediately. No timers.
   // ERR_ABORTED (-3) = cancelled by our own loadURL call → ignore.

@@ -453,3 +453,44 @@ describe('utils.js – setReactInputValue()', () => {
     assert.doesNotThrow(() => setReactInputValue(undefined, 'x'));
   });
 });
+
+describe('utils.js – logCodecCapability() (reference copy)', () => {
+  test('nutzt vollständige HEVC Codec-IDs (identisch zu preload.js)', () => {
+    assert.ok(
+      utilsSource.includes("const HEVC_CODEC_IDS = ['hvc1.1.6.L93.B0', 'hev1.1.6.L93.B0']"),
+      'utils.js muss dieselben vollständigen Codec-IDs definieren wie preload.js',
+    );
+    assert.ok(
+      utilsSource.includes('async function logCodecCapability()'),
+      'utils.js muss die Codec-Probe enthalten (kein Drift zu preload.js)',
+    );
+  });
+
+  test('gibt die Probe-Zeile mit [upv]-Präfix aus', async () => {
+    const logs = [];
+    const ctx = vm.createContext({
+      console: { log: (...args) => logs.push(args.map(String).join(' ')), warn: () => {} },
+      document: { URL: '', createElement: () => ({ canPlayType: () => '' }) },
+      module: { exports: {} },
+      exports: {},
+    });
+    vm.runInContext(utilsSource + '\nmodule.exports.logCodecCapability = logCodecCapability;', ctx);
+
+    await ctx.module.exports.logCodecCapability();
+    assert.ok(
+      logs.some((l) => l.startsWith('[upv] codec probe:')),
+      'die Probe muss mit dem [upv]-Präfix loggen (IPC-Forwarding)',
+    );
+  });
+
+  test('wirft nicht, wenn MediaSource und navigator fehlen', async () => {
+    const ctx = vm.createContext({
+      console: { log: () => {}, warn: () => {} },
+      document: { URL: '', createElement: () => ({ canPlayType: () => '' }) },
+      module: { exports: {} },
+      exports: {},
+    });
+    vm.runInContext(utilsSource + '\nmodule.exports.logCodecCapability = logCodecCapability;', ctx);
+    await assert.doesNotReject(() => ctx.module.exports.logCodecCapability());
+  });
+});

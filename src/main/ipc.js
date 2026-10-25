@@ -10,6 +10,11 @@ const path = require('node:path');
 const store = require('./store');
 const { LOG_IPC_CHANNEL, LOG_SOURCE_WINDOW, LOG_SOURCE_APP } = require('./logger');
 
+// Main → renderer push channel. The window fullscreen state is an OS state that the
+// renderer cannot observe (document.fullscreenElement stays null for an Electron
+// window fullscreen), so it is announced from here.
+const FULLSCREEN_IPC_CHANNEL = 'fullscreenChanged';
+
 // ── Handler implementations ───────────────────────────────────────────────────
 
 function onReset() {
@@ -77,6 +82,16 @@ function onToggleFullscreen(event) {
   if (win) {
     win.setFullScreen(!win.isFullScreen());
   }
+}
+
+/**
+ * Reports whether the sending window is currently in window fullscreen.
+ * @param {Electron.IpcMainInvokeEvent} event
+ * @returns {Promise<boolean>}
+ */
+async function onFullscreenGet(event) {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  return win ? win.isFullScreen() : false;
 }
 
 // ── Profile handlers ──────────────────────────────────────────────────────────
@@ -196,6 +211,27 @@ function registerF11Handler(win) {
   });
 }
 
+/**
+ * Announces every window fullscreen change to the renderer. The renderer gates the
+ * liveview overlays on this state, so the push must happen on both directions.
+ * @param {BrowserWindow} win
+ */
+function registerFullscreenWatcher(win) {
+  const announce = (active) => {
+    try {
+      win.webContents.send(FULLSCREEN_IPC_CHANNEL, active);
+    } catch (_) {
+      // The render process may already be gone – must not crash the app
+    }
+
+    const logger = _getLogger && _getLogger();
+    if (logger) logger.log(LOG_SOURCE_WINDOW, `fullscreen state changed: ${active}`);
+  };
+
+  win.on('enter-full-screen', () => announce(true));
+  win.on('leave-full-screen', () => announce(false));
+}
+
 // ── Registration ──────────────────────────────────────────────────────────────
 
 function registerIpcHandlers(getLogger) {
@@ -222,6 +258,12 @@ function registerIpcHandlers(getLogger) {
   ipcMain.handle('startupProfileGet', onStartupProfileGet);
   ipcMain.handle('startupSettingsGet', onStartupSettingsGet);
   ipcMain.handle('displaysGet', onDisplaysGet);
+  ipcMain.handle('fullscreenGet', onFullscreenGet);
 }
 
-module.exports = { registerIpcHandlers, registerF11Handler, makeWindowLogHandler };
+module.exports = {
+  registerIpcHandlers,
+  registerF11Handler,
+  registerFullscreenWatcher,
+  makeWindowLogHandler,
+};

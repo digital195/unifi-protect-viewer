@@ -155,4 +155,62 @@ async function dismissAllModals() {
   );
 }
 
+// ── Codec capability probe ────────────────────────────────────────────────────
+
+/**
+ * Full HEVC codec ids only. Chromium rejects incomplete ids such as "hvc1" or
+ * "hev1", so a bare id reports unsupported even on a machine that can decode —
+ * only the complete profile/level/tier id gives a meaningful answer.
+ */
+const HEVC_CODEC_IDS = ['hvc1.1.6.L93.B0', 'hev1.1.6.L93.B0'];
+
+/**
+ * Logs which video codecs the rendering engine can actually decode, so an
+ * "Enhanced encoding" report can be answered from the log alone.
+ *
+ * Pure observation – no app behaviour branches on the result. Runs once per
+ * page load, never blocks the liveview automation, and swallows every error.
+ *
+ * @returns {Promise<void>}
+ */
+async function logCodecCapability() {
+  try {
+    const video = document.createElement('video');
+    const probe = {};
+    let mseSupported = false;
+
+    for (const id of HEVC_CODEC_IDS) {
+      const type = `video/mp4; codecs="${id}"`;
+      const mse = typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported(type);
+      if (mse) mseSupported = true;
+
+      probe[id] = { canPlayType: video.canPlayType(type) || 'no', mse };
+    }
+
+    if (typeof navigator !== 'undefined' && navigator.mediaCapabilities?.decodingInfo) {
+      const info = await navigator.mediaCapabilities.decodingInfo({
+        type: 'file',
+        video: {
+          contentType: 'video/mp4; codecs="hvc1.1.6.L93.B0"',
+          width: 1920,
+          height: 1080,
+          bitrate: 8_000_000,
+          framerate: 30,
+        },
+      });
+
+      probe.mcap = { supported: info.supported, powerEfficient: info.powerEfficient };
+    }
+
+    const platform = typeof navigator !== 'undefined' ? navigator.platform : 'n/a';
+    console.log('[upv] codec probe:', JSON.stringify(probe), 'platform:', platform);
+
+    if (!mseSupported && !probe.mcap?.supported) {
+      console.warn('[upv] HEVC not decodable here – Enhanced encoding cameras will fail');
+    }
+  } catch (_) {
+    /* swallow – must not crash the preload */
+  }
+}
+
 // (no module.exports – this file is a reference copy, not a runtime module)

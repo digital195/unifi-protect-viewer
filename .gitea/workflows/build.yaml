@@ -5,7 +5,9 @@
 #
 # For every tag the workflow:
 #   1. Builds all target platforms × architectures (standard + portable each).
-#   2. Archives each build directory as a .zip (Windows/Linux) or .tar.gz (macOS).
+#      darwin is not built here: signing requires codesign, which only exists on a
+#      macOS host, so macOS artefacts come from the GitHub workflow (macos-latest).
+#   2. Archives each build directory as a .zip.
 #   3. Creates a Gitea Release with all archive artefacts attached.
 #   4. Publishes the packages to the Gitea Package Registry (generic packages).
 #
@@ -46,31 +48,41 @@ jobs:
           - { platform: win32,  arch: x64,   portable: 'true',  prerelease_build: true  }
           - { platform: win32,  arch: ia32,  portable: 'false', prerelease_build: false }
           - { platform: win32,  arch: ia32,  portable: 'true',  prerelease_build: false }
-          # macOS
-          - { platform: darwin, arch: x64,   portable: 'false', prerelease_build: false }
-          - { platform: darwin, arch: x64,   portable: 'true',  prerelease_build: false }
-          - { platform: darwin, arch: arm64, portable: 'false', prerelease_build: false }
-          - { platform: darwin, arch: arm64, portable: 'true',  prerelease_build: true  }
+
           # Linux
           - { platform: linux,  arch: x64,   portable: 'false', prerelease_build: false }
           - { platform: linux,  arch: x64,   portable: 'true',  prerelease_build: true  }
           - { platform: linux,  arch: arm64, portable: 'false', prerelease_build: false }
           - { platform: linux,  arch: arm64, portable: 'true',  prerelease_build: false }
 
-    # For pre-release tags: only build entries flagged with prerelease_build: true.
-    # For full releases: build everything.
-    if: ${{ !contains(github.ref_name, '-') || matrix.prerelease_build == true }}
-
     steps:
+      # act_runner does not allow the matrix context in a job-level if:.
+      # This guard step skips non-prerelease_build entries on pre-release tags;
+      # full releases (no '-' in the tag) run every matrix entry.
+      - name: Guard
+        id: guard
+        shell: bash
+        run: |
+          IS_PRE="${{ contains(github.ref_name, '-') }}"
+          IS_PRE_BUILD="${{ matrix.prerelease_build }}"
+          if [[ "$IS_PRE" == "true" && "$IS_PRE_BUILD" == "false" ]]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true"  >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout SCM
+        if: steps.guard.outputs.run == 'true'
         uses: actions/checkout@v5
 
       - name: Tool Install
+        if: steps.guard.outputs.run == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: 22
 
       - name: Verify Version Matches Tag
+        if: steps.guard.outputs.run == 'true'
         shell: bash
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#v}"
@@ -82,13 +94,16 @@ jobs:
           echo "[version-check] OK: package.json (${PKG_VERSION}) matches tag ${GITHUB_REF_NAME}"
 
       - name: Download Dependencies
+        if: steps.guard.outputs.run == 'true'
         run: npm ci
 
       - name: Tests
+        if: steps.guard.outputs.run == 'true'
         run: |
           npm run test:coverage
 
       - name: Build
+        if: steps.guard.outputs.run == 'true'
         env:
           UPV_PLATFORM:       ${{ matrix.platform }}
           UPV_ARCH:           ${{ matrix.arch }}
@@ -98,6 +113,7 @@ jobs:
         run: node scripts/build.js
 
       - name: Resolve Build Directory
+        if: steps.guard.outputs.run == 'true'
         id: resolve
         shell: bash
         run: |
@@ -105,11 +121,7 @@ jobs:
           PORTABLE_SUFFIX="${{ matrix.portable == 'true' && '-portable' || '' }}"
           EXPECTED="unifi-protect-viewer-${{ matrix.platform }}-${{ matrix.arch }}-${VERSION}${PORTABLE_SUFFIX}"
 
-          if [ "${{ matrix.platform }}" = "darwin" ]; then
-            ARCHIVE_NAME="${EXPECTED}.tar.gz"
-          else
-            ARCHIVE_NAME="${EXPECTED}.zip"
-          fi
+          ARCHIVE_NAME="${EXPECTED}.zip"
 
           echo "[resolve] expected dir : ${EXPECTED}"
           echo "[resolve] archive name : ${ARCHIVE_NAME}"
@@ -129,6 +141,7 @@ jobs:
           echo "version=${VERSION}"           >> "$GITHUB_OUTPUT"
 
       - name: Create Archive
+        if: steps.guard.outputs.run == 'true'
         shell: bash
         run: |
           cd "${{ env.OUT_DIR }}"
@@ -143,14 +156,11 @@ jobs:
             exit 1
           fi
 
-          if [ "${{ matrix.platform }}" = "darwin" ]; then
-            tar -czf "${ARCHIVE_NAME}" "${DIR_NAME}"
-          else
-            zip -9 -r "${ARCHIVE_NAME}" "${DIR_NAME}"
-          fi
+          zip -9 -r "${ARCHIVE_NAME}" "${DIR_NAME}"
           echo "[archive] created ${ARCHIVE_NAME}  ($(du -sh "${ARCHIVE_NAME}" | cut -f1))"
 
       - name: Upload Artefact
+        if: steps.guard.outputs.run == 'true'
         uses: actions/upload-artifact@v3
         with:
           name: ${{ steps.resolve.outputs.archive_name }}
@@ -189,7 +199,7 @@ jobs:
           path: dist
 
       - name: List Artefacts
-        run: find dist/ -type f \( -name "*.zip" -o -name "*.tar.gz" \) | sort
+        run: find dist/ -type f -name "*.zip" | sort
 
       - name: Create Gitea Release
         id: create_release
@@ -228,7 +238,7 @@ jobs:
         run: |
           BASE_URL="https://${REGISTRY%/}"
           RELEASE_ID="${{ steps.create_release.outputs.release_id }}"
-          find dist/ -type f \( -name "*.zip" -o -name "*.tar.gz" \) | sort | while read archive; do
+          find dist/ -type f -name "*.zip" | sort | while read archive; do
             filename="$(basename "${archive}")"
             URL="${BASE_URL}/api/v1/repos/${REPOSITORY}/releases/${RELEASE_ID}/assets"
             echo "Uploading asset ${filename} to ${URL} …"
@@ -249,7 +259,7 @@ jobs:
           REGISTRY_NAME:     ${{ secrets.REG_NAME }}
         run: |
           BASE_URL="https://${REGISTRY%/}"
-          find dist/ -type f \( -name "*.zip" -o -name "*.tar.gz" \) | sort | while read archive; do
+          find dist/ -type f -name "*.zip" | sort | while read archive; do
             filename="$(basename "${archive}")"
             URL="${BASE_URL}/api/packages/${REGISTRY_USERNAME}/generic/${REGISTRY_NAME}/${VERSION}/${filename}"
             echo "Uploading ${filename} to ${URL} …"

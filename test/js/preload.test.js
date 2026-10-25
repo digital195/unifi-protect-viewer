@@ -62,6 +62,7 @@ function buildDomMock() {
 function runPreloadInSandbox(invokeReturnValue = undefined) {
   const sentMessages = [];
   const invokedMessages = [];
+  const onHandlers = [];
   const exposed = {};
   const keydownListeners = [];
 
@@ -71,6 +72,7 @@ function runPreloadInSandbox(invokeReturnValue = undefined) {
       invokedMessages.push({ channel: ch, args });
       return Promise.resolve(invokeReturnValue);
     },
+    on: (ch, handler) => onHandlers.push({ channel: ch, handler }),
   };
 
   const mockContextBridge = {
@@ -121,7 +123,7 @@ function runPreloadInSandbox(invokeReturnValue = undefined) {
   // installConsoleLogOverride() startup call. Record the base index so tests
   // can find the FIRST message sent after an explicit API call.
   const baseIdx = sentMessages.length;
-  return { exposed, sentMessages, invokedMessages, keydownListeners, baseIdx };
+  return { exposed, sentMessages, invokedMessages, onHandlers, keydownListeners, baseIdx };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -137,7 +139,9 @@ describe('preload.js – API surface contract', () => {
       'configLoad',
       'configSave',
       'displaysGet',
+      'fullscreenGet',
       'launchProfile',
+      'onFullscreenChanged',
       'openConfig',
       'openDevTools',
       'openExternal',
@@ -166,6 +170,19 @@ describe('preload.js – API surface contract', () => {
   test('exposeInMainWorld key is exactly "electronAPI"', () => {
     const { exposed } = runPreloadInSandbox();
     assert.ok('electronAPI' in exposed, '"electronAPI" key must be used');
+  });
+
+  test('fullscreenGet invokes the fullscreenGet channel', () => {
+    const { exposed, invokedMessages } = runPreloadInSandbox();
+    exposed.electronAPI.fullscreenGet();
+    assert.strictEqual(invokedMessages[0].channel, 'fullscreenGet');
+  });
+
+  test('onFullscreenChanged subscribes to the fullscreenChanged push channel', () => {
+    const { exposed, onHandlers } = runPreloadInSandbox();
+    exposed.electronAPI.onFullscreenChanged(() => {});
+    assert.strictEqual(onHandlers.length, 1);
+    assert.strictEqual(onHandlers[0].channel, 'fullscreenChanged');
   });
 });
 

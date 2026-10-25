@@ -12,7 +12,8 @@
  *   getBrowserWindowInstances, getAppHandlers, getContextBridgeExposed,
  *   getIpcMainHandleHandlers, getIpcMainHandlers, getIpcRendererInvokedMessages,
  *   getIpcRendererSentMessages, getMenuBuiltTemplates, getShellOpenedUrls,
- *   getTrayInstances, installElectronMock, ipcMain, ipcRenderer,
+ *   getTrayInstances, getWebContentsSentMessages, installElectronMock, ipcMain,
+ *   ipcRenderer, nativeImage, resetElectronMocks, shell, uninstallElectronMock
  *   nativeImage, resetElectronMocks, shell, uninstallElectronMock
  */
 
@@ -31,6 +32,7 @@ let _browserWindowInstances = [];
 let _menuBuiltTemplates = [];
 let _shellOpenedUrls = [];
 let _nativeImageCalls = [];
+let _webContentsSentMessages = [];
 
 // ── app mock ──────────────────────────────────────────────────────────────────
 
@@ -89,6 +91,9 @@ class BrowserWindow {
       on: (event, handler) => {
         if (!this._eventHandlers[event]) this._eventHandlers[event] = [];
         this._eventHandlers[event].push(handler);
+      },
+      send: (channel, ...args) => {
+        _webContentsSentMessages.push({ channel, args });
       },
       executeJavaScript: () => Promise.resolve(),
       getURL: () => this._url || '',
@@ -361,6 +366,7 @@ function resetElectronMocks() {
   _menuBuiltTemplates = [];
   _shellOpenedUrls = [];
   _nativeImageCalls = [];
+  _webContentsSentMessages = [];
 
   app._whenReadyCallbacks = [];
   app.commandLine.appendSwitch = () => {};
@@ -403,6 +409,9 @@ function getMenuBuiltTemplates() {
 function getShellOpenedUrls() {
   return _shellOpenedUrls;
 }
+function getWebContentsSentMessages() {
+  return _webContentsSentMessages;
+}
 
 module.exports = {
   electronMock,
@@ -419,6 +428,7 @@ module.exports = {
   getBrowserWindowInstances,
   getMenuBuiltTemplates,
   getShellOpenedUrls,
+  getWebContentsSentMessages,
   // Direct references
   app,
   BrowserWindow,
