@@ -7,6 +7,9 @@
 # prerelease_build: true  →  win32-x64, darwin-arm64, linux-x64  (all portable).
 # Full releases build all 12 matrix entries.
 #
+# Action majors are the Node 24 runtime lines: the Node 20 runtime is no longer
+# available on hosted runners, so these majors require runner >= 2.327.1.
+#
 # ── Secrets ───────────────────────────────────────────────────────────────────
 #   GITHUB_TOKEN       – provided automatically
 #   UPV_ENCRYPTION_KEY – encryption key for portable builds
@@ -67,11 +70,11 @@ jobs:
 
       - name: Checkout
         if: steps.guard.outputs.run == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
         if: steps.guard.outputs.run == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -159,7 +162,7 @@ jobs:
 
       - name: Upload Artefact
         if: steps.guard.outputs.run == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.resolve.outputs.archive_name }}
           path: ${{ env.OUT_DIR }}/${{ steps.resolve.outputs.archive_name }}
@@ -175,13 +178,13 @@ jobs:
 
     steps:
       - name: Download Artefacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name:       Unifi Protect Viewer ${{ github.ref_name }}
           prerelease: ${{ contains(github.ref_name, '-') }}

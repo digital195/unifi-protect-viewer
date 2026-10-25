@@ -2,7 +2,7 @@
 
 A clean Electron app that auto-logs into your Unifi Protect instance and presents the camera liveview in a distraction-free fullscreen layout — no headers, no navigation, no clutter.
 
-> Tested with Unifi Protect **v2.x – v6.x** running on UDM-Pro / UDM-SE / CloudKey Gen2+.
+> Tested with Unifi Protect **v2.x – v7.x** running on UDM-Pro / UDM-SE / CloudKey Gen2+.
 
 ![Preview](screenshots/preview.png)
 
